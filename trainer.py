@@ -1,7 +1,7 @@
 import torch
 import math
 import torch.nn as nn
-from ray.train import get_context, report, Checkpoint
+from ray.train import get_context, report, Checkpoint, get_checkpoint
 import ray.train.torch as rt
 from datasets import load_dataset
 from torch.utils.data import DataLoader
@@ -47,10 +47,19 @@ class Trainer:
         return trainer.train
 
     def train(self):
+        config = self.training_config
+
+        # load checkpoint, if exists
+        checkpoint = get_checkpoint()
+        if checkpoint:
+            with checkpoint.as_directory() as checkpoint_dir:
+                self.load(os.path.join(checkpoint_dir, "checkpoint.pt"))
+
         if self.is_headnode and self.training_config.wandb:
             wandb.init(
                 project="dropfree",
                 entity="jemoka",
+                name=config,
                 config=vars(config)
             )
 

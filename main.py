@@ -9,6 +9,7 @@ import argparse
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='bert')
+    parser.add_argument("experiment", help="name for the experiment", type=str)
     parser.add_argument("save_dir", help="path for ray to put logs and checkpoints to", type=str)
     parser.add_argument("--head_node", help="ip address of the headnode of the cluster", type=str, default=None)
     parser.add_argument("--checkpoints", default=3, type=int, help="how many checkpoints to keep")
@@ -27,11 +28,12 @@ if __name__ == "__main__":
         ray.init(num_cpus=1, num_gpus=1, dashboard_host="0.0.0.0")
     scaling_config = ray.train.ScalingConfig(num_workers=1, use_gpu=True)
     run_config = ray.train.RunConfig(storage_path="file://"+os.path.abspath(args.save_dir),
+                                     name=args.experiment,
                                      checkpoint_config=ray.train.CheckpointConfig(
                                          num_to_keep=args.checkpoints,
                                          checkpoint_score_attribute="ppl",
-                                         checkpoint_score_order="min")
-                                     )
+                                         checkpoint_score_order="min"
+                                     ))
     trainer = ray.train.torch.TorchTrainer(
         Trainer.execute(args),
         scaling_config=scaling_config,
