@@ -5,6 +5,8 @@ from transformers import AutoConfig, AutoTokenizer, AutoModel
 from ray.train.torch import TorchTrainer, get_device
 from trainer import Trainer
 
+import argparse
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='bert')
     parser.add_argument("head_node", help="ip address of the headnode of the cluster", type="str")
