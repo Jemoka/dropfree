@@ -118,7 +118,8 @@ class Trainer:
 
         with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
             self.save(os.path.join(temp_checkpoint_dir, "checkpoint.pt"))
-            report({"loss": loss, "ppl": ppl}, Checkpoint.from_directory(temp_checkpoint_dir))
+            report({"loss": loss, "ppl": ppl}, 
+                    checkpoint=Checkpoint.from_directory(temp_checkpoint_dir))
 
         if self.is_headnode and self.training_config.wandb:
             wandb.log({"validation/loss": loss,
