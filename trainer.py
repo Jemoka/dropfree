@@ -86,7 +86,8 @@ class Trainer:
             if self.is_headnode and indx % 1000 == 0:
                 print(f"trained batch {indx} | loss {round(loss, 3)}")
                 if self.training_config.wandb:
-                    wandb.log({"training/loss": loss})
+                    wandb.log({"training/loss": loss,
+                               "training/lr": self.optim.param_groups[0]["lr"]})
             if indx % 5000 == 0:
                 self.val()
 
