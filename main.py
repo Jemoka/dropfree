@@ -9,8 +9,8 @@ import argparse
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='bert')
-    parser.add_argument("head_node", help="ip address of the headnode of the cluster", type=str)
     parser.add_argument("save_dir", help="path for ray to put logs and checkpoints to", type=str)
+    parser.add_argument("--head_node", help="ip address of the headnode of the cluster", type=str, default=None)
     parser.add_argument("--checkpoints", default=3, type=int, help="how many checkpoints to keep")
     parser.add_argument("--dataset", default="cerebras/SlimPajama-627B", type=str, help="dataset")
     parser.add_argument("--batch_size", default=256, type=int, help="training batch size *PER WORKER*")
@@ -21,7 +21,10 @@ if __name__ == "__main__":
     parser.add_argument("--warmup_steps", default=10000, type=int, help="number of steps to warm up scheduler")
     args = parser.parse_args()
     
-    ray.init(args.head_node)
+    if args.head_node:
+        ray.init(args.head_node)
+    else:
+        ray.init()
     scaling_config = ray.train.ScalingConfig(num_workers=3, use_gpu=True)
     trainer = ray.train.torch.TorchTrainer(
         Trainer.execute(args),
