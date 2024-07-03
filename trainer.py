@@ -1,4 +1,5 @@
 import torch
+import math
 import torch.nn as nn
 from ray.train import get_context, report, Checkpoint
 import ray.train.torch as rt
@@ -7,7 +8,7 @@ from torch.utils.data import DataLoader
 
 import os
 import wandb
-from transformers import AutoConfig, AutoModel, AutoTokenizer
+from transformers import AutoConfig, AutoModelForMaskedLM, AutoTokenizer
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import SequentialLR, LinearLR
 
@@ -19,18 +20,11 @@ from argparse import Namespace
 
 class Trainer:
     def __init__(self, config, train_split="train", val_split="validation"):
-        if self.is_headnode and config.wandb:
-            wandb.init(
-                project="dropfree",
-                entity="jemoka",
-                config=vars(config)
-            )
+        dataset = load_dataset(config.dataset, split=train_split, streaming=True)
+        self.loader = DataLoader(dataset, batch_size=config.batch_size)
 
-        dataset = load_dataset(config.dataset, train_split, streaming=True)
-        self.loader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
-
-        val_dataset = load_dataset(config.dataset, val_split, streaming=True)
-        self.val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=True)
+        val_dataset = load_dataset(config.dataset, split=val_split, streaming=True)
+        self.val_loader = DataLoader(val_dataset, batch_size=config.batch_size)
 
         self.model_config = AutoConfig.from_pretrained(config.base)
         self.tokenizer = AutoTokenizer.from_pretrained(config.base)
@@ -40,13 +34,8 @@ class Trainer:
             self.attention_probs_dropout_prob = 0
             self.hidden_dropout_prob = 0
 
-        self.model = AutoModel.from_config(self.model_config)
+        self.model = AutoModelForMaskedLM.from_config(self.model_config)
         self.optim = AdamW(self.model.parameters(), lr=config.lr, betas=(0.9,0.999), eps=1e-6, weight_decay=0.01)
-
-        self.model = rt.prepare_model(self.model)
-        self.loader = rt.prepare_data_loader(self.loader)
-        self.val_loader = rt.prepare_data_loader(self.val_loader)
-        self.optim = rt.prepare_optimizer(self.optim)
 
         scheduler1 = LinearLR(self.optim, start_factor=1e-6, end_factor=1, total_iters=config.warmup_steps)
         scheduler2 = LinearLR(self.optim, start_factor=1, end_factor=0, total_iters=1.5e6/config.batch_size) # todo stop hardcoding
@@ -58,6 +47,19 @@ class Trainer:
         return trainer.train
 
     def train(self):
+        if self.is_headnode and self.training_config.wandb:
+            wandb.init(
+                project="dropfree",
+                entity="jemoka",
+                config=vars(config)
+            )
+
+        self.model = rt.prepare_model(self.model)
+        self.loader = rt.prepare_data_loader(self.loader)
+        self.val_loader = rt.prepare_data_loader(self.val_loader)
+        self.optim = rt.prepare_optimizer(self.optim)
+
+
         for indx, batch in enumerate(self.loader):
             inputs, labels = process_batch(batch["text"], self.tokenizer)
 
@@ -71,11 +73,13 @@ class Trainer:
             self.scheduler.step()
             self.optim.zero_grad()
 
-            if self.is_headnode and self.training_config.wandb and indx % 1000 == 0:
-                loss = outputs.loss.cpu().item()
-                print(f"trained batch #{indx}")
-                print(f"loss {round(loss, 3)}")
-                wandb.log({"training/loss": loss})
+            loss = outputs.loss.cpu().item()
+            if self.is_headnode and indx % 1000 == 0:
+                print(f"trained batch {indx} | loss {round(loss, 3)}")
+                if self.training_config.wandb:
+                    wandb.log({"training/loss": loss})
+            if indx % 5000 == 0:
+                self.val()
 
         if self.is_headnode and config.wandb:
             wandb.finish()
@@ -100,11 +104,11 @@ class Trainer:
                 break
 
         loss = loss.cpu().item()
-        ppl = torch.exp(loss/count).item()
+        ppl = math.exp(loss/count)
 
         with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
             self.save(os.path.join(temp_checkpoint_dir, "checkpoint.pt"))
-            report({"loss": loss, "ppl": pll}, Checkpoint.from_directory(temp_checkpoint_dir))
+            report({"loss": loss, "ppl": ppl}, Checkpoint.from_directory(temp_checkpoint_dir))
 
         if self.is_headnode and self.training_config.wandb:
             wandb.log({"validation/loss": loss,
@@ -116,7 +120,7 @@ class Trainer:
         torch.save({
             "scheduler": self.scheduler.state_dict(),
             "model": self.model.state_dict(),
-            "optimizer": self.optimizer.state_dict(),
+            "optimizer": self.optim.state_dict(),
             "config": vars(self.training_config)
         }, path)
 

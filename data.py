@@ -3,7 +3,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 
 def process_batch(batch, tokenizer):
-    tokenized = tokenizer(batch, return_tensors="pt", truncation=True, padding=True)
+    tokenized = tokenizer(batch, return_tensors="pt", truncation=True, padding=True, max_length=512)
     inputs = tokenized["input_ids"]
     inputs_backup = torch.clone(tokenized["input_ids"])
 
