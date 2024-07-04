@@ -32,7 +32,8 @@ if __name__ == "__main__":
 
     ray.init(runtime_env={"env_vars": {"NCCL_SOCKET_IFNAME": "^ens,veth,docker,lo"}})
 
-    train, val = load_dataset(config.dataset, streaming=True, split=["train", "validation"])
+    train = load_dataset(args.dataset, streaming=True, split="train")
+    val = load_dataset(args.dataset, streaming=True, split="validation")
     train_ds = ray.data.from_huggingface(train)
     val_ds = ray.data.from_huggingface(val)
 

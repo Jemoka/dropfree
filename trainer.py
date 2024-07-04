@@ -85,8 +85,7 @@ class Trainer:
                 self.local_step_counter_ += 1
                 continue
 
-            inputs = inputs.to(self.device)
-            labels = labels.to(self.device)
+            inputs, labels = process_batch(batch["text"], self.tokenizer, self.device)
 
             outputs = self.model(**inputs, labels=labels)
 
@@ -118,10 +117,7 @@ class Trainer:
 
         for indx, batch in enumerate(self.val_loader):
             with torch.inference_mode():
-                inputs, labels = process_batch(batch["text"], self.tokenizer)
-
-                inputs = inputs.to(self.device)
-                labels = labels.to(self.device)
+                inputs, labels = process_batch(batch["text"], self.tokenizer, self.device)
 
                 outputs = self.model(**inputs, labels=labels)
 
