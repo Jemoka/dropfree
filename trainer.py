@@ -41,6 +41,9 @@ class Trainer:
         scheduler2 = LinearLR(self.optim, start_factor=1, end_factor=0, total_iters=1.5e6/config.batch_size) # todo stop hardcoding
         self.scheduler = SequentialLR(self.optim, schedulers=[scheduler1, scheduler2], milestones=[config.warmup_steps])
 
+        self.global_step_counter_ = 0
+        self.local_step_counter_ = 0
+
     @classmethod
     def execute(cls, *args, **kwargs):
         trainer = cls(*args, **kwargs)
@@ -70,6 +73,10 @@ class Trainer:
 
 
         for indx, batch in enumerate(self.loader):
+            if self.global_step_counter_ > self.local_step_counter_:
+                self.local_step_counter_ += 1
+                continue
+
             inputs, labels = process_batch(batch["text"], self.tokenizer)
 
             inputs = inputs.to(self.device)
@@ -90,6 +97,9 @@ class Trainer:
                                "training/lr": self.optim.param_groups[0]["lr"]})
             if indx % 5000 == 0:
                 self.val()
+
+            self.global_step_counter_ += 1
+            self.local_step_counter_ += 1
 
         if self.is_headnode and config.wandb:
             wandb.finish()
@@ -132,7 +142,8 @@ class Trainer:
             "scheduler": self.scheduler.state_dict(),
             "model": self.model.state_dict(),
             "optimizer": self.optim.state_dict(),
-            "config": vars(self.training_config)
+            "config": vars(self.training_config),
+            "steps": self.global_step_counter_
         }, path)
 
     def load(self, path):
@@ -141,6 +152,7 @@ class Trainer:
         self.model.load_state_dict(data.get("model", {}))
         self.optimizer.load_state_dict(data.get("optimizer", {}))
         self.training_config = Namespace(**data.get("config", {}))
+        self.global_step_counter_ = data.set("steps", 0)
 
     @property
     def is_headnode(self):

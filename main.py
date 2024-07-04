@@ -32,11 +32,15 @@ if __name__ == "__main__":
                                          checkpoint_score_attribute="ppl",
                                          checkpoint_score_order="min"
                                      ))
-    trainer = ray.train.torch.TorchTrainer(
-        Trainer.execute(args),
-        scaling_config=scaling_config,
-        run_config=run_config,
-    )
+    exp = os.path.join(os.path.abspath(args.save_dir), args.experiment)
+    if TorchTrainer.can_restore(exp):
+        trainer = TorchTrainer.restore()
+    else:
+        trainer = ray.train.torch.TorchTrainer(
+            Trainer.execute(args),
+            scaling_config=scaling_config,
+            run_config=run_config,
+        )
     trainer.fit()
     ray.shutdown()
 
