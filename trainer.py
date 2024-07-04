@@ -1,7 +1,7 @@
 import torch
 import math
 import torch.nn as nn
-from ray.train import get_context, report, Checkpoint, get_checkpoint
+from ray.train import get_context, report, Checkpoint, get_checkpoint, get_dataset_shard
 import ray.train.torch as rt
 from datasets import load_dataset
 from torch.utils.data import DataLoader
@@ -20,11 +20,13 @@ from argparse import Namespace
 
 class Trainer:
     def __init__(self, config, train_split="train", val_split="validation"):
-        dataset = load_dataset(config.dataset, split=train_split, streaming=True)
-        self.loader = DataLoader(dataset, batch_size=config.batch_size)
-
-        val_dataset = load_dataset(config.dataset, split=val_split, streaming=True)
-        self.val_loader = DataLoader(val_dataset, batch_size=config.batch_size)
+        if config.no_ray:
+            dataset, val_dataset = load_dataset(config.dataset, streaming=True, split=["train", "validation"])
+            self.loader = iter(DataLoader(dataset, batch_size=config.batch_size))
+            self.val_loader = iter(DataLoader(val_dataset, batch_size=config.batch_size))
+        else:
+            self.loader = None
+            self.val_loader = None
 
         self.model_config = AutoConfig.from_pretrained(config.base)
         self.tokenizer = AutoTokenizer.from_pretrained(config.base)
@@ -70,17 +72,18 @@ class Trainer:
             self.model = self.model.to(self.device)
         else:
             self.model = rt.prepare_model(self.model)
-            self.loader = rt.prepare_data_loader(self.loader)
-            self.val_loader = rt.prepare_data_loader(self.val_loader)
             self.optim = rt.prepare_optimizer(self.optim)
-
+            self.loader = get_dataset_shard("train").iter_batches(
+                batch_size=self.training_config.batch_size
+            )
+            self.val_loader = get_dataset_shard("val").iter_batches(
+                batch_size=self.training_config.batch_size
+            )
 
         for indx, batch in enumerate(self.loader):
             if self.global_step_counter_ > self.local_step_counter_:
                 self.local_step_counter_ += 1
                 continue
-
-            inputs, labels = process_batch(batch["text"], self.tokenizer)
 
             inputs = inputs.to(self.device)
             labels = labels.to(self.device)

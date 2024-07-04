@@ -5,6 +5,8 @@ from transformers import AutoConfig, AutoTokenizer, AutoModel
 from ray.train.torch import TorchTrainer, get_device
 from trainer import Trainer
 
+from datasets import load_dataset
+
 import argparse
 
 if __name__ == "__main__":
@@ -27,8 +29,13 @@ if __name__ == "__main__":
     if args.no_ray:
         Trainer.execute(args)()
         quit()
-    
+
     ray.init(runtime_env={"env_vars": {"NCCL_SOCKET_IFNAME": "^ens,veth,docker,lo"}})
+
+    train, val = load_dataset(config.dataset, streaming=True, split=["train", "validation"])
+    train_ds = ray.data.from_huggingface(train)
+    val_ds = ray.data.from_huggingface(val)
+
     scaling_config = ray.train.ScalingConfig(num_workers=args.workers, use_gpu=True)
     run_config = ray.train.RunConfig(storage_path="file://"+os.path.abspath(args.save_dir),
                                      name=args.experiment,
@@ -39,12 +46,15 @@ if __name__ == "__main__":
                                      ))
     exp = os.path.join(os.path.abspath(args.save_dir), args.experiment)
     if TorchTrainer.can_restore(exp):
-        trainer = TorchTrainer.restore(exp)
+        trainer = TorchTrainer.restore(exp, datasets={"train": train_ds,
+                                                      "val": val_ds})
     else:
         trainer = ray.train.torch.TorchTrainer(
             Trainer.execute(args),
             scaling_config=scaling_config,
             run_config=run_config,
+            datasets={"train": train_ds,
+                      "val": val_ds}
         )
     trainer.fit()
     ray.shutdown()
