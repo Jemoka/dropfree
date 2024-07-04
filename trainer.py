@@ -90,12 +90,12 @@ class Trainer:
             self.optim.zero_grad()
 
             loss = outputs.loss.cpu().item()
-            if self.is_headnode and indx % 250 == 0:
+            if self.is_headnode:
                 print(f"trained batch {indx} | loss {round(loss, 3)}")
                 if self.training_config.wandb:
                     wandb.log({"training/loss": loss,
                                "training/lr": self.optim.param_groups[0]["lr"]})
-            if indx % 5000 == 0:
+            if self.is_headnode and indx % 16 == 0:
                 self.val()
 
             self.global_step_counter_ += 1
@@ -123,8 +123,8 @@ class Trainer:
             if indx == 100:
                 break
 
-        loss = loss.cpu().item()
-        ppl = math.exp(loss/count)
+        loss = loss.cpu().item()/count
+        ppl = math.exp(loss)
 
         with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
             self.save(os.path.join(temp_checkpoint_dir, "checkpoint.pt"))
