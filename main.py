@@ -34,7 +34,7 @@ if __name__ == "__main__":
                                      ))
     exp = os.path.join(os.path.abspath(args.save_dir), args.experiment)
     if TorchTrainer.can_restore(exp):
-        trainer = TorchTrainer.restore()
+        trainer = TorchTrainer.restore(exp)
     else:
         trainer = ray.train.torch.TorchTrainer(
             Trainer.execute(args),
