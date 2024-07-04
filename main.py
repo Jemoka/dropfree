@@ -7,6 +7,7 @@ from trainer import Trainer
 from datasets import load_dataset
 
 import argparse
+import logging
 
 import numpy as np
 
@@ -28,9 +29,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='bert')
     parser.add_argument("experiment", help="name for the experiment", type=str)
     parser.add_argument("save_dir", help="where to put logs and checkpoints to", type=str)
-    parser.add_argument("--head_node", help="ip address of the headnode of the cluster", type=str, default=None)
-    parser.add_argument("--workers", default=4, type=int, help="number of workers to run")
-    parser.add_argument("--checkpoints", default=3, type=int, help="how many checkpoints to keep")
     parser.add_argument("--dataset", default="cerebras/SlimPajama-627B", type=str, help="dataset")
     parser.add_argument("--batch_size", default=6, type=int, help="training batch size *PER WORKER*")
     parser.add_argument("--base", default="FacebookAI/xlm-roberta-large", type=str, help="base model configuration (and tokenizer) to use")

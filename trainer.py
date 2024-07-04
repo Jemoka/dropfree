@@ -1,8 +1,6 @@
 import torch
 import math
 import torch.nn as nn
-from ray.train import get_context, report, Checkpoint, get_checkpoint, get_dataset_shard
-import ray.train.torch as rt
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
@@ -24,15 +22,38 @@ import tempfile
 
 from argparse import Namespace
 
+from torch.utils.data import IterableDataset
+
+def collate_and_process(x, tokenizer, device):
+    batch = [i["text"] for i in x]
+    inputs, labels = process_batch(batch, tokenizer, device)
+
+    return { **inputs, "labels": labels }
+
 class Trainer:
     def __init__(self, config):
-        dataset = load_dataset(config.dataset, streaming=True, split="train")
-        val_dataset = load_dataset(config.dataset, streaming=True, split="validation")
-        self.loader = iter(DataLoader(dataset, batch_size=config.batch_size))
-        self.val_loader = iter(DataLoader(val_dataset, batch_size=config.batch_size))
+
+        self.accelerator = Accelerator()
+        self.accelerator.init_trackers(
+            project_name="dropfree", 
+            config=vars(config),
+            init_kwargs={"wandb": {"entity": "jemoka",
+                                   "mode": None if config.wandb else "disabled",
+                                   "name": config.experiment}},
+        )
 
         self.model_config = AutoConfig.from_pretrained(config.base)
         self.tokenizer = AutoTokenizer.from_pretrained(config.base)
+
+        dataset = load_dataset(config.dataset, streaming=True, split="train")
+        val_dataset = load_dataset(config.dataset, streaming=True, split="validation")
+        self.loader = DataLoader(dataset, 
+                                 collate_fn=lambda x: collate_and_process(x, self.tokenizer, self.device), 
+                                 batch_size=config.batch_size)
+        self.val_loader = DataLoader(val_dataset, 
+                                     collate_fn=lambda x: collate_and_process(x, self.tokenizer, self.device), 
+                                     batch_size=config.batch_size)
+
         self.training_config = config
 
         if not config.dropout:
@@ -50,16 +71,7 @@ class Trainer:
         self.best_val_loss_ = float("+inf")
 
         self.save_dir = os.path.join(config.save_dir, config.experiment)
-        self.accelerator = Accelerator()
-        self.accelerator.init_trackers(
-            project_name="dropfree", 
-            config=vars(self.training_config),
-            init_kwargs={"wandb": {"entity": "jemoka",
-                                   "mode": None if config.wandb else "disabled",
-                                   "name": config.experiment}},
-        )
-
-        (self.model, self.optim, self.scheduler
+        (self.model, self.optim, self.scheduler,
          self.loader, self.val_loader) = self.accelerator.prepare(
              self.model, self.optim, self.scheduler,
              self.loader, self.val_loader
@@ -78,8 +90,7 @@ class Trainer:
         config = self.training_config
 
         for indx, batch in enumerate(self.loader):
-            inputs, labels = process_batch(batch["text"], self.tokenizer, self.device)
-            outputs = self.model(**inputs, labels=labels)
+            outputs = self.model(**batch)
 
             self.accelerator.backward(outputs.loss)
             self.optim.step()
@@ -108,9 +119,7 @@ class Trainer:
 
         for indx, batch in enumerate(self.val_loader):
             with torch.inference_mode():
-                inputs, labels = process_batch(batch["text"], self.tokenizer, self.device)
-
-                outputs = self.model(**inputs, labels=labels)
+                outputs = self.model(**batch)
 
             loss += self.accelerator.gather(outputs.loss)
             count += 1
