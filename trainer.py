@@ -95,7 +95,7 @@ class Trainer:
                 if self.training_config.wandb:
                     wandb.log({"training/loss": loss,
                                "training/lr": self.optim.param_groups[0]["lr"]})
-            if self.is_headnode and indx % 128 == 0:
+            if indx % 128 == 0:
                 self.val()
 
             self.global_step_counter_ += 1
