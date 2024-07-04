@@ -1,18 +1,33 @@
 import os
-import ray
-import ray.train.torch as rt
+import torch
+import random
 from transformers import AutoConfig, AutoTokenizer, AutoModel
-from ray.train.torch import TorchTrainer, get_device
 from trainer import Trainer
 
 from datasets import load_dataset
 
 import argparse
 
+import numpy as np
+
+from accelerate import Accelerator
+from accelerate.logging import get_logger
+
+L = get_logger("dropfree", log_level="DEBUG")
+
+logging.basicConfig(level=logging.WARNING,
+                    format='%(asctime)s %(levelname)s %(funcName)s %(message)s',
+                    handlers=[logging.StreamHandler()])
+L.setLevel(logging.DEBUG)
+
+torch.manual_seed(0)
+random.seed(0)
+np.random.seed(0)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='bert')
     parser.add_argument("experiment", help="name for the experiment", type=str)
-    parser.add_argument("save_dir", help="path for ray to put logs and checkpoints to", type=str)
+    parser.add_argument("save_dir", help="where to put logs and checkpoints to", type=str)
     parser.add_argument("--head_node", help="ip address of the headnode of the cluster", type=str, default=None)
     parser.add_argument("--workers", default=4, type=int, help="number of workers to run")
     parser.add_argument("--checkpoints", default=3, type=int, help="how many checkpoints to keep")
@@ -23,40 +38,7 @@ if __name__ == "__main__":
     parser.add_argument("--wandb", default=False, action="store_true", help="whether to use wandb")
     parser.add_argument("--lr", default=1e-4, type=float, help="learning rate")
     parser.add_argument("--warmup_steps", default=10000, type=int, help="number of steps to warm up scheduler")
-    parser.add_argument("--no_ray", default=False, action="store_true", help="don't use ray")
     args = parser.parse_args()
 
-    if args.no_ray:
-        Trainer.execute(args)()
-        quit()
-
-    ray.init(runtime_env={"env_vars": {"NCCL_SOCKET_IFNAME": "^ens,veth,docker,lo"}})
-
-    train = load_dataset(args.dataset, streaming=True, split="train")
-    val = load_dataset(args.dataset, streaming=True, split="validation")
-    train_ds = ray.data.from_huggingface(train)
-    val_ds = ray.data.from_huggingface(val)
-
-    scaling_config = ray.train.ScalingConfig(num_workers=args.workers, use_gpu=True)
-    run_config = ray.train.RunConfig(storage_path="file://"+os.path.abspath(args.save_dir),
-                                     name=args.experiment,
-                                     checkpoint_config=ray.train.CheckpointConfig(
-                                         num_to_keep=args.checkpoints,
-                                         checkpoint_score_attribute="ppl",
-                                         checkpoint_score_order="min"
-                                     ))
-    exp = os.path.join(os.path.abspath(args.save_dir), args.experiment)
-    if TorchTrainer.can_restore(exp):
-        trainer = TorchTrainer.restore(exp, datasets={"train": train_ds,
-                                                      "val": val_ds})
-    else:
-        trainer = ray.train.torch.TorchTrainer(
-            Trainer.execute(args),
-            scaling_config=scaling_config,
-            run_config=run_config,
-            datasets={"train": train_ds,
-                      "val": val_ds}
-        )
-    trainer.fit()
-    ray.shutdown()
-
+    trainer = Trainer(args)
+    trainer.train()

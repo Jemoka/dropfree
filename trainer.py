@@ -7,10 +7,16 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 
 import os
+import json
 import wandb
 from transformers import AutoConfig, AutoModelForMaskedLM, AutoTokenizer
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import SequentialLR, LinearLR
+
+from accelerate import Accelerator
+from accelerate.logging import get_logger
+
+L = get_logger("dropfree", log_level="DEBUG")
 
 from data import process_batch
 
@@ -19,14 +25,11 @@ import tempfile
 from argparse import Namespace
 
 class Trainer:
-    def __init__(self, config, train_split="train", val_split="validation"):
-        if config.no_ray:
-            dataset, val_dataset = load_dataset(config.dataset, streaming=True, split=["train", "validation"])
-            self.loader = iter(DataLoader(dataset, batch_size=config.batch_size))
-            self.val_loader = iter(DataLoader(val_dataset, batch_size=config.batch_size))
-        else:
-            self.loader = None
-            self.val_loader = None
+    def __init__(self, config):
+        dataset = load_dataset(config.dataset, streaming=True, split="train")
+        val_dataset = load_dataset(config.dataset, streaming=True, split="validation")
+        self.loader = iter(DataLoader(dataset, batch_size=config.batch_size))
+        self.val_loader = iter(DataLoader(val_dataset, batch_size=config.batch_size))
 
         self.model_config = AutoConfig.from_pretrained(config.base)
         self.tokenizer = AutoTokenizer.from_pretrained(config.base)
@@ -44,69 +47,57 @@ class Trainer:
         self.scheduler = SequentialLR(self.optim, schedulers=[scheduler1, scheduler2], milestones=[config.warmup_steps])
 
         self.global_step_counter_ = 0
-        self.local_step_counter_ = 0
+        self.best_val_loss_ = float("+inf")
 
-    @classmethod
-    def execute(cls, *args, **kwargs):
-        trainer = cls(*args, **kwargs)
-        return trainer.train
+        self.save_dir = os.path.join(config.save_dir, config.experiment)
+        self.accelerator = Accelerator()
+        self.accelerator.init_trackers(
+            project_name="dropfree", 
+            config=vars(self.training_config),
+            init_kwargs={"wandb": {"entity": "jemoka",
+                                   "mode": None if config.wandb else "disabled",
+                                   "name": config.experiment}},
+        )
+
+        (self.model, self.optim, self.scheduler
+         self.loader, self.val_loader) = self.accelerator.prepare(
+             self.model, self.optim, self.scheduler,
+             self.loader, self.val_loader
+         )
+
+        self.loader = self.accelerator.skip_first_batches(self.loader,
+                                                          self.global_step_counter_)
+        
+
+        if os.path.exists(os.path.join(self.save_dir, "config.json")):
+            L.info(f"loading existing weights at {self.save_dir}")
+            self.load(self.save_dir)
+
 
     def train(self):
         config = self.training_config
 
-        # load checkpoint, if exists
-        checkpoint = get_checkpoint()
-        if checkpoint:
-            with checkpoint.as_directory() as checkpoint_dir:
-                self.load(os.path.join(checkpoint_dir, "checkpoint.pt"))
-
-        if self.is_headnode and self.training_config.wandb:
-            wandb.init(
-                project="dropfree",
-                entity="jemoka",
-                name=config.experiment,
-                config=vars(config)
-            )
-
-        if self.training_config.no_ray:
-            self.model = self.model.to(self.device)
-        else:
-            self.model = rt.prepare_model(self.model)
-            self.optim = rt.prepare_optimizer(self.optim)
-            self.loader = get_dataset_shard("train").iter_batches(
-                batch_size=self.training_config.batch_size
-            )
-            self.val_loader = get_dataset_shard("val").iter_batches(
-                batch_size=self.training_config.batch_size
-            )
-
         for indx, batch in enumerate(self.loader):
-            if self.global_step_counter_ > self.local_step_counter_:
-                self.local_step_counter_ += 1
-                continue
-
             inputs, labels = process_batch(batch["text"], self.tokenizer, self.device)
-
             outputs = self.model(**inputs, labels=labels)
 
-            outputs.loss.backward()
+            self.accelerator.backward(outputs.loss)
             self.optim.step()
             self.scheduler.step()
             self.optim.zero_grad()
 
-            loss = outputs.loss.cpu().item()
-            if self.is_headnode:
-                print(f"trained batch {indx} | loss {round(loss, 3)}")
-                if self.training_config.wandb:
-                    wandb.log({"training/loss": loss,
-                               "training/lr": self.optim.param_groups[0]["lr"]})
-            if self.training_config.no_ray:
-                print(f"trained batch {indx} | loss {round(loss, 3)}")
-            if indx % 128 == 0:
+            if indx % 25:
+                loss = self.accelerator.gather(outputs.loss).cpu().item()
+
+                L.info(f"training | batch {indx} | loss {round(loss, 3)}", main_process_only=True)
+                self.accelerator.log({"training/loss": loss,
+                                      "training/lr": self.optim.param_groups[0]["lr"]},
+                                     step=self.global_step_counter_)
+
+            if indx % 256 == 0:
                 self.val()
 
             self.global_step_counter_ += 1
-            self.local_step_counter_ += 1
 
         if self.is_headnode and config.wandb:
             wandb.finish()
@@ -121,55 +112,44 @@ class Trainer:
 
                 outputs = self.model(**inputs, labels=labels)
 
-            loss += outputs.loss
+            loss += self.accelerator.gather(outputs.loss)
             count += 1
 
             if indx == 100:
                 break
 
-        loss = loss.cpu().item()/count
-        ppl = math.exp(loss)
+        if self.accelerator.is_main_process:
+            loss = loss.cpu().item()/count
+            ppl = math.exp(loss)
 
-        if not self.training_config.no_ray:
-            with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
-                self.save(os.path.join(temp_checkpoint_dir, "checkpoint.pt"))
-                report({"loss": loss, "ppl": ppl}, 
-                        checkpoint=Checkpoint.from_directory(temp_checkpoint_dir))
+            if loss < self.best_val_loss_:
+                self.best_val_loss_ = loss
 
-        if self.is_headnode and self.training_config.wandb:
-            wandb.log({"validation/loss": loss,
-                       "validation/ppl": ppl})
-
-        print(f"validation: loss {round(loss, 3)} | ppl {round(ppl, 3)}")
+            self.save(self.save_dir)
+            self.accelerator.log({"validation/loss": loss, "validation/ppl": ppl},
+                                step=self.global_step_counter_)
+            L.info(f"validation | loss {round(loss, 3)} | ppl {round(ppl, 3)}")
 
     def save(self, path):
-        torch.save({
-            "scheduler": self.scheduler.state_dict(),
-            "model": self.model.state_dict(),
-            "optimizer": self.optim.state_dict(),
-            "config": vars(self.training_config),
-            "steps": self.global_step_counter_
-        }, path)
+        self.accelerator.save_state(path)
+        with open(os.path.join(self.save_dir, "config.json"), 'w') as df:
+            json.dump({
+                "config": vars(self.training_config),
+                "steps": self.global_step_counter_,
+                "loss": self.best_val_loss_
+            }, df)
+
 
     def load(self, path):
-        data = torch.load(path)
-        self.scheduler.load_state_dict(data.get("scheduler", {}))
-        self.model.load_state_dict(data.get("model", {}))
-        self.optimizer.load_state_dict(data.get("optimizer", {}))
-        self.training_config = Namespace(**data.get("config", {}))
-        self.global_step_counter_ = data.set("steps", 0)
+        self.accelerator.load_state(path)
+        with open(os.path.join(self.save_dir, "config.json"), 'r') as df:
+            data = json.load(df)
 
-    @property
-    def is_headnode(self):
-        return get_context().get_world_rank() == 0 and not self.training_config.no_ray
-    @property
-    def world_size(self):
-        return get_context().get_world_size()
+        self.training_config = Namespace(**data.get("config", {}))
+        self.global_step_counter_ = data.get("steps", 0)
+        self.best_val_loss_ = data.get("loss", 0)
+
     @property
     def device(self):
-        if self.training_config.no_ray:
-            return "cuda" if torch.cuda.is_available() else "cpu"
-        else:
-            return rt.get_device()
-
-
+        return self.accelerator.device
+        
