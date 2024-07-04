@@ -59,7 +59,7 @@ class Trainer:
             wandb.init(
                 project="dropfree",
                 entity="jemoka",
-                name=config,
+                name=config.experiment,
                 config=vars(config)
             )
 
