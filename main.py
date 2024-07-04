@@ -23,10 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--warmup_steps", default=10000, type=int, help="number of steps to warm up scheduler")
     args = parser.parse_args()
     
-    if args.head_node:
-        ray.init(args.head_node, num_cpus=1, num_gpus=1)
-    else:
-        ray.init(num_cpus=1, num_gpus=1, dashboard_host="0.0.0.0")
+    ray.init()
     scaling_config = ray.train.ScalingConfig(num_workers=args.workers, use_gpu=True)
     run_config = ray.train.RunConfig(storage_path="file://"+os.path.abspath(args.save_dir),
                                      name=args.experiment,
