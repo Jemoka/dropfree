@@ -23,7 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--warmup_steps", default=10000, type=int, help="number of steps to warm up scheduler")
     args = parser.parse_args()
     
-    ray.init()
+    ray.init(runtime_env={"env_vars": {"NCCL_SOCKET_IFNAME": "^ens,veth,docker,lo"}})
     scaling_config = ray.train.ScalingConfig(num_workers=args.workers, use_gpu=True)
     run_config = ray.train.RunConfig(storage_path="file://"+os.path.abspath(args.save_dir),
                                      name=args.experiment,
