@@ -21,7 +21,12 @@ if __name__ == "__main__":
     parser.add_argument("--wandb", default=False, action="store_true", help="whether to use wandb")
     parser.add_argument("--lr", default=1e-4, type=float, help="learning rate")
     parser.add_argument("--warmup_steps", default=10000, type=int, help="number of steps to warm up scheduler")
+    parser.add_argument("--no_ray", default=False, action="store_true", help="don't use ray")
     args = parser.parse_args()
+
+    if args.no_ray:
+        Trainer.execute(args)()
+        quit()
     
     ray.init(runtime_env={"env_vars": {"NCCL_SOCKET_IFNAME": "^ens,veth,docker,lo"}})
     scaling_config = ray.train.ScalingConfig(num_workers=args.workers, use_gpu=True)

@@ -66,10 +66,13 @@ class Trainer:
                 config=vars(config)
             )
 
-        self.model = rt.prepare_model(self.model)
-        self.loader = rt.prepare_data_loader(self.loader)
-        self.val_loader = rt.prepare_data_loader(self.val_loader)
-        self.optim = rt.prepare_optimizer(self.optim)
+        if self.training_config.no_ray:
+            self.model = self.model.to(self.device)
+        else:
+            self.model = rt.prepare_model(self.model)
+            self.loader = rt.prepare_data_loader(self.loader)
+            self.val_loader = rt.prepare_data_loader(self.val_loader)
+            self.optim = rt.prepare_optimizer(self.optim)
 
 
         for indx, batch in enumerate(self.loader):
@@ -95,6 +98,8 @@ class Trainer:
                 if self.training_config.wandb:
                     wandb.log({"training/loss": loss,
                                "training/lr": self.optim.param_groups[0]["lr"]})
+            if self.training_config.no_ray:
+                print(f"trained batch {indx} | loss {round(loss, 3)}")
             if indx % 128 == 0:
                 self.val()
 
@@ -126,10 +131,11 @@ class Trainer:
         loss = loss.cpu().item()/count
         ppl = math.exp(loss)
 
-        with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
-            self.save(os.path.join(temp_checkpoint_dir, "checkpoint.pt"))
-            report({"loss": loss, "ppl": ppl}, 
-                    checkpoint=Checkpoint.from_directory(temp_checkpoint_dir))
+        if not self.training_config.no_ray:
+            with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
+                self.save(os.path.join(temp_checkpoint_dir, "checkpoint.pt"))
+                report({"loss": loss, "ppl": ppl}, 
+                        checkpoint=Checkpoint.from_directory(temp_checkpoint_dir))
 
         if self.is_headnode and self.training_config.wandb:
             wandb.log({"validation/loss": loss,
@@ -156,12 +162,15 @@ class Trainer:
 
     @property
     def is_headnode(self):
-        return get_context().get_world_rank() == 0
+        return get_context().get_world_rank() == 0 and not self.training_config.no_ray
     @property
     def world_size(self):
         return get_context().get_world_size()
     @property
     def device(self):
-        return rt.get_device()
+        if self.training_config.no_ray:
+            return "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            return rt.get_device()
 
 
