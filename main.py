@@ -12,6 +12,7 @@ if __name__ == "__main__":
     parser.add_argument("experiment", help="name for the experiment", type=str)
     parser.add_argument("save_dir", help="path for ray to put logs and checkpoints to", type=str)
     parser.add_argument("--head_node", help="ip address of the headnode of the cluster", type=str, default=None)
+    parser.add_argument("--workers", default=4, type=int, help="number of workers to run")
     parser.add_argument("--checkpoints", default=3, type=int, help="how many checkpoints to keep")
     parser.add_argument("--dataset", default="cerebras/SlimPajama-627B", type=str, help="dataset")
     parser.add_argument("--batch_size", default=6, type=int, help="training batch size *PER WORKER*")
@@ -26,7 +27,7 @@ if __name__ == "__main__":
         ray.init(args.head_node, num_cpus=1, num_gpus=1)
     else:
         ray.init(num_cpus=1, num_gpus=1, dashboard_host="0.0.0.0")
-    scaling_config = ray.train.ScalingConfig(num_workers=1, use_gpu=True)
+    scaling_config = ray.train.ScalingConfig(num_workers=args.workers, use_gpu=True)
     run_config = ray.train.RunConfig(storage_path="file://"+os.path.abspath(args.save_dir),
                                      name=args.experiment,
                                      checkpoint_config=ray.train.CheckpointConfig(
