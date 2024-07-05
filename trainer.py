@@ -148,7 +148,7 @@ class Trainer:
 
     def save(self, path):
         self.accelerator.save_state(path)
-        with open(os.path.join(self.save_dir, "config.json"), 'w') as df:
+        with open(os.path.join(path, "config.json"), 'w') as df:
             json.dump({
                 "config": vars(self.training_config),
                 "steps": self.global_step_counter_,
@@ -158,7 +158,7 @@ class Trainer:
 
     def load(self, path):
         self.accelerator.load_state(path)
-        with open(os.path.join(self.save_dir, "config.json"), 'r') as df:
+        with open(os.path.join(path, "config.json"), 'r') as df:
             data = json.load(df)
 
         self.training_config = Namespace(**data.get("config", {}))
