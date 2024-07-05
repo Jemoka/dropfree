@@ -43,6 +43,8 @@ class Trainer:
         )
 
         self.model_config = AutoConfig.from_pretrained(config.base)
+        self.model = AutoModelForMaskedLM.from_config(self.model_config)
+
         self.tokenizer = AutoTokenizer.from_pretrained(config.base)
 
         dataset = load_dataset(config.dataset, streaming=True, split="train")
@@ -61,7 +63,6 @@ class Trainer:
             self.attention_probs_dropout_prob = 0
             self.hidden_dropout_prob = 0
 
-        self.model = AutoModelForMaskedLM.from_config(self.model_config)
         self.optim = AdamW(self.model.parameters(), lr=config.lr, betas=(0.9,0.999), eps=1e-6, weight_decay=0.01)
 
         scheduler1 = LinearLR(self.optim, start_factor=1e-20, end_factor=1, total_iters=config.warmup_steps)
@@ -79,8 +80,6 @@ class Trainer:
              self.loader, self.val_loader
          )
 
-        wandb.watch(self.model)
-
         self.loader = self.accelerator.skip_first_batches(self.loader,
                                                           self.global_step_counter_)
         
@@ -91,6 +90,8 @@ class Trainer:
 
 
     def train(self):
+        wandb.watch(self.model)
+
         config = self.training_config
 
         for indx, batch in enumerate(iter(self.loader)):
