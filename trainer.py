@@ -47,6 +47,7 @@ class Trainer:
 
         dataset = load_dataset(config.dataset, streaming=True, split="train")
         val_dataset = load_dataset(config.dataset, streaming=True, split="validation")
+
         self.loader = DataLoader(dataset, 
                                  collate_fn=lambda x: collate_and_process(x, self.tokenizer, self.device), 
                                  batch_size=config.batch_size)
@@ -89,7 +90,10 @@ class Trainer:
     def train(self):
         config = self.training_config
 
-        for indx, batch in enumerate(self.loader):
+        for indx, batch in enumerate(iter(self.loader)):
+            if indx % 256 == 0:
+                self.val()
+
             outputs = self.model(**batch)
 
             self.accelerator.backward(outputs.loss)
@@ -97,16 +101,13 @@ class Trainer:
             self.scheduler.step()
             self.optim.zero_grad()
 
-            if indx % 25:
-                loss = self.accelerator.gather(outputs.loss).cpu().item()
+            if indx % 64 == 0:
+                loss = self.accelerator.gather(outputs.loss).mean().cpu().item()
 
                 L.info(f"training | batch {indx} | loss {round(loss, 3)}", main_process_only=True)
                 self.accelerator.log({"training/loss": loss,
                                       "training/lr": self.optim.param_groups[0]["lr"]},
                                      step=self.global_step_counter_)
-
-            if indx % 256 == 0:
-                self.val()
 
             self.global_step_counter_ += 1
 
@@ -117,27 +118,28 @@ class Trainer:
         loss = 0
         count = 0
 
-        for indx, batch in enumerate(self.val_loader):
+        for indx, batch in enumerate(iter(self.val_loader)):
             with torch.inference_mode():
                 outputs = self.model(**batch)
 
-            loss += self.accelerator.gather(outputs.loss)
+            loss += self.accelerator.gather(outputs.loss).mean().cpu().item()
             count += 1
+            if indx % 4 == 0:
+                L.info(f"validation | batch {indx} | loss {round(loss/count, 3)}", main_process_only=True)
 
-            if indx == 100:
+            if indx >= 100:
                 break
 
-        if self.accelerator.is_main_process:
-            loss = loss.cpu().item()/count
-            ppl = math.exp(loss)
+        loss = loss/count
+        ppl = math.exp(loss)
 
-            if loss < self.best_val_loss_:
-                self.best_val_loss_ = loss
+        if loss < self.best_val_loss_:
+            self.best_val_loss_ = loss
 
-            self.save(self.save_dir)
-            self.accelerator.log({"validation/loss": loss, "validation/ppl": ppl},
-                                step=self.global_step_counter_)
-            L.info(f"validation | loss {round(loss, 3)} | ppl {round(ppl, 3)}")
+        self.save(self.save_dir)
+        self.accelerator.log({"validation/loss": loss, "validation/ppl": ppl},
+                            step=self.global_step_counter_)
+        L.info(f"validation | loss {round(loss, 3)} | ppl {round(ppl, 3)}")
 
     def save(self, path):
         self.accelerator.save_state(path)

@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument("experiment", help="name for the experiment", type=str)
     parser.add_argument("save_dir", help="where to put logs and checkpoints to", type=str)
     parser.add_argument("--dataset", default="cerebras/SlimPajama-627B", type=str, help="dataset")
-    parser.add_argument("--batch_size", default=6, type=int, help="training batch size *PER WORKER*")
+    parser.add_argument("--batch_size", default=12, type=int, help="training batch size *PER WORKER*")
     parser.add_argument("--base", default="FacebookAI/xlm-roberta-large", type=str, help="base model configuration (and tokenizer) to use")
     parser.add_argument("--dropout", default=False, action="store_true", help="whether to enable dropout")
     parser.add_argument("--wandb", default=False, action="store_true", help="whether to use wandb")
