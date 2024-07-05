@@ -33,7 +33,7 @@ def collate_and_process(x, tokenizer, device):
 class Trainer:
     def __init__(self, config):
 
-        self.accelerator = Accelerator()
+        self.accelerator = Accelerator(log_with="wandb")
         self.accelerator.init_trackers(
             project_name="dropfree", 
             config=vars(config),
@@ -111,8 +111,7 @@ class Trainer:
 
             self.global_step_counter_ += 1
 
-        if self.is_headnode and config.wandb:
-            wandb.finish()
+        self.accelerator.end_training()
 
     def val(self):
         loss = 0
