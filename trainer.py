@@ -64,19 +64,22 @@ class Trainer:
         self.model = AutoModelForMaskedLM.from_config(self.model_config)
         self.optim = AdamW(self.model.parameters(), lr=config.lr, betas=(0.9,0.999), eps=1e-6, weight_decay=0.01)
 
-        scheduler1 = LinearLR(self.optim, start_factor=1e-6, end_factor=1, total_iters=config.warmup_steps)
+        scheduler1 = LinearLR(self.optim, start_factor=1e-20, end_factor=1, total_iters=config.warmup_steps)
         scheduler2 = LinearLR(self.optim, start_factor=1, end_factor=0, total_iters=1.5e6/config.batch_size) # todo stop hardcoding
         self.scheduler = SequentialLR(self.optim, schedulers=[scheduler1, scheduler2], milestones=[config.warmup_steps])
 
         self.global_step_counter_ = 0
         self.best_val_loss_ = float("+inf")
 
-        self.save_dir = os.path.join(config.save_dir, config.experiment)
+        self.save_dir = os.path.join(config.save_dir, config.experiment, "checkpoint")
+        self.best_dir = os.path.join(config.save_dir, config.experiment, "best")
         (self.model, self.optim, self.scheduler,
          self.loader, self.val_loader) = self.accelerator.prepare(
              self.model, self.optim, self.scheduler,
              self.loader, self.val_loader
          )
+
+        wandb.watch(self.model)
 
         self.loader = self.accelerator.skip_first_batches(self.loader,
                                                           self.global_step_counter_)
@@ -91,7 +94,7 @@ class Trainer:
         config = self.training_config
 
         for indx, batch in enumerate(iter(self.loader)):
-            if indx % 256 == 0:
+            if indx % 1024 == 0:
                 self.val()
 
             outputs = self.model(**batch)
@@ -123,7 +126,7 @@ class Trainer:
 
             loss += self.accelerator.gather(outputs.loss).mean().cpu().item()
             count += 1
-            if indx % 4 == 0:
+            if indx % 32 == 0:
                 L.info(f"validation | batch {indx} | loss {round(loss/count, 3)}", main_process_only=True)
 
             if indx >= 100:
@@ -134,6 +137,7 @@ class Trainer:
 
         if loss < self.best_val_loss_:
             self.best_val_loss_ = loss
+            self.save(self.best_dir)
 
         self.save(self.save_dir)
         self.accelerator.log({"validation/loss": loss, "validation/ppl": ppl},
