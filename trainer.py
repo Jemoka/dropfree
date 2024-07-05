@@ -48,18 +48,10 @@ class Trainer:
 
         self.tokenizer = AutoTokenizer.from_pretrained(config.base)
 
-        datasets.config.STREAMING_READ_MAX_RETRIES = 20000  # default
-        datasets.config.STREAMING_READ_RETRY_INTERVAL = 10  # default
-
-        dataset = load_dataset(config.dataset, streaming=True, split="train")
-        val_dataset = load_dataset(config.dataset, streaming=True, split="validation")
-
+        dataset = load_dataset(config.dataset, "sample-10BT", streaming=True, split="train")
         self.loader = DataLoader(dataset, 
                                  collate_fn=lambda x: collate_and_process(x, self.tokenizer, self.device), 
                                  batch_size=config.batch_size)
-        self.val_loader = DataLoader(val_dataset, 
-                                     collate_fn=lambda x: collate_and_process(x, self.tokenizer, self.device), 
-                                     batch_size=config.batch_size)
 
         self.training_config = config
 
@@ -70,7 +62,7 @@ class Trainer:
         self.optim = AdamW(self.model.parameters(), lr=config.lr, betas=(0.9,0.999), eps=1e-6, weight_decay=0.01)
 
         scheduler1 = LinearLR(self.optim, start_factor=1e-20, end_factor=1, total_iters=config.warmup_steps)
-        scheduler2 = LinearLR(self.optim, start_factor=1, end_factor=0, total_iters=1.5e6/config.batch_size) # todo stop hardcoding
+        scheduler2 = LinearLR(self.optim, start_factor=1, end_factor=0, total_iters=14.9e6/config.batch_size) # todo stop hardcoding
         self.scheduler = SequentialLR(self.optim, schedulers=[scheduler1, scheduler2], milestones=[config.warmup_steps])
 
         self.global_step_counter_ = 0
@@ -79,13 +71,12 @@ class Trainer:
         self.save_dir = os.path.join(config.save_dir, config.experiment, "checkpoint")
         self.best_dir = os.path.join(config.save_dir, config.experiment, "best")
         (self.model, self.optim, self.scheduler,
-         self.loader, self.val_loader) = self.accelerator.prepare(
+         self.loader) = self.accelerator.prepare(
              self.model, self.optim, self.scheduler,
-             self.loader, self.val_loader
+             self.loader
          )
 
-        self.loader = self.accelerator.skip_first_batches(self.loader,
-                                                          self.global_step_counter_)
+        self.loader = self.accelerator.skip_first_batches(self.loader, self.global_step_counter_)
         
 
         if os.path.exists(os.path.join(self.save_dir, "config.json")):
@@ -126,7 +117,8 @@ class Trainer:
         loss = 0
         count = 0
 
-        for indx, batch in enumerate(iter(self.val_loader)):
+        val_loader = self.accelerator.skip_first_batches(self.loader, self.global_step_counter_)
+        for indx, batch in enumerate(iter(val_loader)):
             with torch.inference_mode():
                 outputs = self.model(**batch)
 

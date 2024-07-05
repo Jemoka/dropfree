@@ -4,6 +4,10 @@ import random
 from transformers import AutoConfig, AutoTokenizer, AutoModel
 from trainer import Trainer
 
+import datasets
+datasets.config.STREAMING_READ_MAX_RETRIES = 20000
+datasets.config.STREAMING_READ_RETRY_INTERVAL = 10
+
 from datasets import load_dataset
 
 import argparse
@@ -29,7 +33,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='bert')
     parser.add_argument("experiment", help="name for the experiment", type=str)
     parser.add_argument("save_dir", help="where to put logs and checkpoints to", type=str)
-    parser.add_argument("--dataset", default="cerebras/SlimPajama-627B", type=str, help="dataset")
+    parser.add_argument("--dataset", default="HuggingFaceFW/fineweb", type=str, help="dataset")
     parser.add_argument("--batch_size", default=12, type=int, help="training batch size *PER WORKER*")
     parser.add_argument("--base", default="FacebookAI/xlm-roberta-large", type=str, help="base model configuration (and tokenizer) to use")
     parser.add_argument("--dropout", default=False, action="store_true", help="whether to enable dropout")
