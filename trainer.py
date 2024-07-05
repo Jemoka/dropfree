@@ -1,6 +1,7 @@
 import torch
 import math
 import torch.nn as nn
+import datasets
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
@@ -46,6 +47,9 @@ class Trainer:
         self.model = AutoModelForMaskedLM.from_config(self.model_config)
 
         self.tokenizer = AutoTokenizer.from_pretrained(config.base)
+
+        datasets.config.STREAMING_READ_MAX_RETRIES = 20000  # default
+        datasets.config.STREAMING_READ_RETRY_INTERVAL = 10  # default
 
         dataset = load_dataset(config.dataset, streaming=True, split="train")
         val_dataset = load_dataset(config.dataset, streaming=True, split="validation")
