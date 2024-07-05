@@ -90,7 +90,8 @@ class Trainer:
 
 
     def train(self):
-        wandb.watch(self.model)
+        if self.accelerator.is_main_process:
+            wandb.watch(self.model)
 
         config = self.training_config
 
