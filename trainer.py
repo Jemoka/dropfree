@@ -70,11 +70,8 @@ class Trainer:
 
         self.save_dir = os.path.join(config.save_dir, config.experiment, "checkpoint")
         self.best_dir = os.path.join(config.save_dir, config.experiment, "best")
-        (self.model, self.optim, self.scheduler,
-         self.loader) = self.accelerator.prepare(
-             self.model, self.optim, self.scheduler,
-             self.loader
-         )
+        (self.model, self.optim, self.scheduler, self.loader) = self.accelerator.prepare(
+             self.model, self.optim, self.scheduler, self.loader)
 
         if os.path.exists(os.path.join(self.save_dir, "config.json")):
             L.info(f"loading existing weights at {self.save_dir}")
