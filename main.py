@@ -33,6 +33,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='bert')
     parser.add_argument("experiment", help="name for the experiment", type=str)
     parser.add_argument("save_dir", help="where to put logs and checkpoints to", type=str)
+    parser.add_argument("--out_dir", default=None, type=str, help="path to export the model")
     parser.add_argument("--dataset", default="HuggingFaceFW/fineweb", type=str, help="dataset")
     parser.add_argument("--batch_size", default=12, type=int, help="training batch size *PER WORKER*")
     parser.add_argument("--base", default="FacebookAI/xlm-roberta-large", type=str, help="base model configuration (and tokenizer) to use")
@@ -43,4 +44,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     trainer = Trainer(args)
-    trainer.train()
+
+    if args.experiment == "export":
+        trainer.load(args.save_dir)
+        trainer.model.save_pretrained(args.out_dir)
+        trainer.tokenizer.save_pretrained(args.out_dir)
+    else:
+        trainer.train()

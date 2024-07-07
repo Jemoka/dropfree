@@ -76,14 +76,12 @@ class Trainer:
              self.loader
          )
 
-        self.loader = self.accelerator.skip_first_batches(self.loader, self.global_step_counter_)
-        
-
         if os.path.exists(os.path.join(self.save_dir, "config.json")):
             L.info(f"loading existing weights at {self.save_dir}")
             self.load(self.save_dir)
 
-
+        self.loader = self.accelerator.skip_first_batches(self.loader, self.global_step_counter_)
+        
     def train(self):
         if self.accelerator.is_main_process:
             wandb.watch(self.model)
