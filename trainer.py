@@ -44,7 +44,6 @@ class Trainer:
         )
 
         self.model_config = AutoConfig.from_pretrained(config.base)
-        self.model = AutoModelForMaskedLM.from_config(self.model_config)
 
         self.tokenizer = AutoTokenizer.from_pretrained(config.base)
 
@@ -56,8 +55,10 @@ class Trainer:
         self.training_config = config
 
         if not config.dropout:
-            self.attention_probs_dropout_prob = 0
-            self.hidden_dropout_prob = 0
+            self.model_config.attention_probs_dropout_prob = 0
+            self.model_config.hidden_dropout_prob = 0
+
+        self.model = AutoModelForMaskedLM.from_config(self.model_config)
 
         self.optim = AdamW(self.model.parameters(), lr=config.lr, betas=(0.9,0.999), eps=1e-6, weight_decay=0.01)
 
@@ -76,8 +77,13 @@ class Trainer:
         if os.path.exists(os.path.join(self.save_dir, "config.json")):
             L.info(f"loading existing weights at {self.save_dir}")
             self.load(self.save_dir)
+            dataset = dataset.skip(config.batch_size*self.global_step_counter_)
+            self.loader = DataLoader(dataset, 
+                                     collate_fn=lambda x: collate_and_process(x, self.tokenizer, self.device), 
+                                     batch_size=config.batch_size)
 
-        self.loader = self.accelerator.skip_first_batches(self.loader, self.global_step_counter_)
+            self.loader = self.accelerator.prepare(self.loader)
+
         
     def train(self):
         if self.accelerator.is_main_process:

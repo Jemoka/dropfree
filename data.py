@@ -1,6 +1,7 @@
 import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader
+import time
 
 def process_batch(batch, tokenizer, device="cpu"):
     tokenized = tokenizer(batch, return_tensors="pt", truncation=True, padding="max_length", max_length=512).to(device)
