@@ -77,7 +77,7 @@ class Trainer:
         if os.path.exists(os.path.join(self.save_dir, "config.json")):
             L.info(f"loading existing weights at {self.save_dir}")
             self.load(self.save_dir)
-            dataset = dataset.skip(config.batch_size*self.global_step_counter_)
+            dataset = dataset.skip(config.batch_size*self.global_step_counter_*self.accelerator.state.num_processes)
             self.loader = DataLoader(dataset, 
                                      collate_fn=lambda x: collate_and_process(x, self.tokenizer, self.device), 
                                      batch_size=config.batch_size)
@@ -93,7 +93,22 @@ class Trainer:
 
         for indx, batch in enumerate(iter(self.loader)):
             if indx % 1024 == 0:
-                self.val()
+                # we can do this because we are not training more than
+                # one epoch
+                with torch.inference_mode():
+                    outputs = self.model(**batch)
+                loss = self.accelerator.gather(outputs.loss).mean().cpu().item()
+                ppl = math.exp(loss)
+                if loss < self.best_val_loss_:
+                    self.best_val_loss_ = loss
+                    self.save(self.best_dir)
+
+                self.save(self.save_dir)
+                self.accelerator.log({"validation/loss": loss, "validation/ppl": ppl},
+                                    step=self.global_step_counter_)
+                L.info(f"validation | loss {round(loss, 3)} | ppl {round(ppl, 3)}", main_process_only=True)
+
+                continue
 
             outputs = self.model(**batch)
 
@@ -113,35 +128,6 @@ class Trainer:
             self.global_step_counter_ += 1
 
         self.accelerator.end_training()
-
-    def val(self):
-        loss = 0
-        count = 0
-
-        val_loader = self.accelerator.skip_first_batches(self.loader, self.global_step_counter_)
-        for indx, batch in enumerate(iter(val_loader)):
-            with torch.inference_mode():
-                outputs = self.model(**batch)
-
-            loss += self.accelerator.gather(outputs.loss).mean().cpu().item()
-            count += 1
-            if indx % 32 == 0:
-                L.info(f"validation | batch {indx} | loss {round(loss/count, 3)}", main_process_only=True)
-
-            if indx >= 100:
-                break
-
-        loss = loss/count
-        ppl = math.exp(loss)
-
-        if loss < self.best_val_loss_:
-            self.best_val_loss_ = loss
-            self.save(self.best_dir)
-
-        self.save(self.save_dir)
-        self.accelerator.log({"validation/loss": loss, "validation/ppl": ppl},
-                            step=self.global_step_counter_)
-        L.info(f"validation | loss {round(loss, 3)} | ppl {round(ppl, 3)}")
 
     def save(self, path):
         self.accelerator.save_state(path)
