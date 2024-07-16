@@ -47,7 +47,7 @@ class Trainer:
 
         self.tokenizer = AutoTokenizer.from_pretrained(config.base)
 
-        dataset = load_dataset(config.dataset, "sample-10BT", streaming=True, split="train")
+        dataset = load_dataset(config.dataset, streaming=True, split="train")
         self.loader = DataLoader(dataset, 
                                  collate_fn=lambda x: collate_and_process(x, self.tokenizer, self.device), 
                                  batch_size=config.batch_size)
