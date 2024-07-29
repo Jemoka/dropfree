@@ -26,6 +26,12 @@ from argparse import Namespace
 
 from torch.utils.data import IterableDataset
 
+import logging
+logging.basicConfig(level=logging.WARNING,
+                    format='%(asctime)s %(levelname)s %(funcName)s %(message)s',
+                    handlers=[logging.StreamHandler()])
+
+
 def collate_and_process(x, tokenizer, device):
     batch = [i["text"] for i in x]
     inputs, labels = process_batch(batch, tokenizer, device)
@@ -33,9 +39,9 @@ def collate_and_process(x, tokenizer, device):
     return { **inputs, "labels": labels }
 
 class Evaluator:
-    def __init__(self, model, dataset="cerebras/SlimPajama-627B", batch_size=12):
+    def __init__(self, model, dataset="cerebras/SlimPajama-627B", batch_size=12, alt=None):
 
-        self.accelerator = Accelerator(cpu=True)
+        self.accelerator = Accelerator()
         self.model = AutoModelForMaskedLM.from_pretrained(model)
         self.tokenizer = AutoTokenizer.from_pretrained(model)
 
@@ -44,19 +50,32 @@ class Evaluator:
                                  collate_fn=lambda x: collate_and_process(x, self.tokenizer, self.device), 
                                  batch_size=batch_size)
         self.model, self.loader = self.accelerator.prepare(self.model, self.loader)
+        self.model.eval()
+
+        if alt:
+            self.alt = self.accelerator.prepare(AutoModelForMaskedLM.from_pretrained(alt))
+        else:
+            self.alt = None
 
     def eval(self):
         total_loss = 0
         for indx, i in enumerate(self.loader):
-            total_loss += self.step(i).cpu().item()
+            res = self.step(i).cpu().item()
+            total_loss += res
             if indx >= 2048:
                 break
+            if indx % 32 == 0:
+                L.info(f"TEST | {indx}/2048 | result: {round(res, 3)}")
         return total_loss/indx
 
     def step(self, step):
         # perform forward pass
         res = self.model(**step)
         mask_idx = (step["input_ids"] == self.tokenizer.mask_token_id)
+
+        if self.alt != None:
+            res_alt = self.alt(**step)
+            pred_dists_alt = F.softmax(res_alt.logits[mask_idx], dim=1)
         
         # create distributions of the input
         pred_dists = F.softmax(res.logits[mask_idx], dim=1)
@@ -74,5 +93,5 @@ class Evaluator:
 model = "./models/no_dropout"
 ev = Evaluator(model)
 res = ev.eval()
-print(f"model: {model}, result: {round(res, 8)}")
+L.info(f"model: {model}, result: {round(res, 8)}")
 
