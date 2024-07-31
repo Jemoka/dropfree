@@ -12,7 +12,9 @@ from transformers import AutoConfig, AutoModelForMaskedLM, AutoTokenizer
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import SequentialLR, LinearLR
 
-from accelerate import Accelerator
+from datetime import timedelta
+
+from accelerate import Accelerator, InitProcessGroupKwargs
 from accelerate.logging import get_logger
 
 L = get_logger("dropfree", log_level="DEBUG")
@@ -25,6 +27,9 @@ from argparse import Namespace
 
 from torch.utils.data import IterableDataset
 
+process_group_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=16200))  # 3 hours
+
+
 def collate_and_process(x, tokenizer, device):
     batch = [i["text"] for i in x]
     inputs, labels = process_batch(batch, tokenizer, device)
@@ -34,7 +39,7 @@ def collate_and_process(x, tokenizer, device):
 class Trainer:
     def __init__(self, config):
 
-        self.accelerator = Accelerator(log_with="wandb")
+        self.accelerator = Accelerator(log_with="wandb", kwargs_handlers=[process_group_kwargs])
         self.accelerator.init_trackers(
             project_name="dropfree", 
             config=vars(config),
