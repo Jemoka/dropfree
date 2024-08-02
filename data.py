@@ -7,6 +7,7 @@ def process_batch(batch, tokenizer, device="cpu"):
     tokenized = tokenizer(batch, return_tensors="pt", truncation=True, padding="max_length", max_length=512).to(device)
     inputs = tokenized["input_ids"]
     inputs_backup = torch.clone(tokenized["input_ids"])
+    inputs_backup[inputs == tokenizer.pad_token_id] = -100
 
     corrupt_candidates = tokenized["attention_mask"].nonzero()
     corrupt_candidates = corrupt_candidates[
