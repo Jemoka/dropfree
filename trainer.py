@@ -48,11 +48,14 @@ class Trainer:
                                    "name": config.experiment}},
         )
 
+        CORPUS_ROWS = 148e6
+        self.total_iters = CORPUS_ROWS/config.batch_size
+
         self.model_config = AutoConfig.from_pretrained(config.base)
 
         self.tokenizer = AutoTokenizer.from_pretrained(config.base)
 
-        dataset = load_dataset(config.dataset, streaming=True, split="train")
+        dataset = load_dataset(config.dataset, "sample-100BT", streaming=True, split="train")
         self.loader = DataLoader(dataset, 
                                  collate_fn=lambda x: collate_and_process(x, self.tokenizer, self.device), 
                                  batch_size=config.batch_size)
@@ -68,7 +71,7 @@ class Trainer:
         self.optim = AdamW(self.model.parameters(), lr=config.lr, betas=(0.9,0.999), eps=1e-6, weight_decay=0.01)
 
         scheduler1 = LinearLR(self.optim, start_factor=1e-20, end_factor=1, total_iters=config.warmup_steps)
-        scheduler2 = LinearLR(self.optim, start_factor=1, end_factor=0, total_iters=14.9e6/config.batch_size) # todo stop hardcoding
+        scheduler2 = LinearLR(self.optim, start_factor=1, end_factor=0, total_iters=self.total_iters) # todo stop hardcoding
         self.scheduler = SequentialLR(self.optim, schedulers=[scheduler1, scheduler2], milestones=[config.warmup_steps])
 
         self.global_step_counter_ = 0
@@ -131,6 +134,9 @@ class Trainer:
                                      step=self.global_step_counter_)
 
             self.global_step_counter_ += 1
+
+            if (self.global_step_counter_ > self.total_iters):
+                break
 
         self.accelerator.end_training()
 
