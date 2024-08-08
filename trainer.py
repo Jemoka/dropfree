@@ -118,6 +118,9 @@ class Trainer:
 
                 continue
 
+            if self.global_step_counter_ % 50000 == 0:
+                self.save(self.save_dir+"_"+str(self.global_step_counter_))
+
             outputs = self.model(**batch)
 
             self.accelerator.backward(outputs.loss)
