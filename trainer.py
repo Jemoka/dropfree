@@ -19,10 +19,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import SequentialLR, LinearLR
+from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR
 
 # huggingface
-from transformers import AutoConfig, AutoModel, AutoTokenizer
+from datasets import load_dataset
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 # MLOps
 import wandb
@@ -32,7 +33,6 @@ from accelerate import Accelerator
 from loguru import logger
 
 # our stuff
-from model import *
 from data import *
 
 R = Random(7)
@@ -43,7 +43,7 @@ class Trainer:
         self.args = args
         self.accelerator = Accelerator(log_with="wandb")
         self.accelerator.init_trackers(
-            project_name="adventure", 
+            project_name="dropfree", 
             config=vars(args),
             init_kwargs={"wandb": {"mode": None if args.wandb else "disabled",
                                    "name": args.experiment}},
@@ -56,18 +56,25 @@ class Trainer:
         self.save_dir = str(save_dir / "checkpoint")
         self.best_dir = str(save_dir / "best")
 
-        # <<<<<<< set up models <<<<<<<
-        # 
-        # self.model = ...
-        #
-        # >>>>>>> set up models >>>>>>>
+        # set up models
+        self.config = AutoConfig.from_pretrained(args.architecture)
+        self.tokenizer = AutoTokenizer.from_pretrained(args.architecture)
 
-        # <<<<<<< set up data <<<<<<<
-        #    
-        # self.train_dl = ...
-        # self.val_dl = ...
-        #    
-        # >>>>>>> set up data >>>>>>>
+        self.config.attention_probs_dropout_prob = args.dropout
+        self.config.hidden_dropout_prob = args.dropout
+
+        # enable a selective amount of dropout
+        # which is the main variable we are testing
+        self.model = AutoModelForCausalLM.from_config(config)
+        self.model.train()
+
+        # set up data
+        # TODO hard coding (because the number of iters is hard coded)
+        self.train_dl = get_dataloader(load_dataset("EleutherAI/the_pile_deduplicated", streaming=True)["train"],
+                                       self.tokenizer,
+                                       self.config,
+                                       args.batch_size)
+
         # leave blank
         # this will exist if we are resuming from checkpoint
         self.train_dl_skipped = None 
@@ -75,14 +82,26 @@ class Trainer:
         # optimizer
         self.optim = AdamW(self.model.parameters(), lr=args.lr)
 
+        # scheduler
+        # TODO hard coding (because the number of iters is hard coded)
+        TOTAL_ITERS = 134318121 // (self.batch_size * self.accelerator.state.num_processes)
+        warmup_steps = int(args.warmup_pct*TOTAL_ITERS)
+
+        scheduler1 = LinearLR(self.optim, start_factor=1e-20, end_factor=1, total_iters=warmup_steps)
+        scheduler2 = CosineAnnealingLR(self.optim, TOTAL_ITERS,
+                                       eta_min=args.lr*args.decay_target_pct) # todo stop hardcoding
+        self.scheduler = SequentialLR(self.optim, schedulers=[scheduler1, scheduler2],
+                                      milestones=[warmup_steps])
+
+
         # compute training size + the counter (useful for mid-checkpoint recovery) 
         self.total_batches = len(self.train_dl)
         self.global_step_counter_ = 0
         self.best_val_score_ = float("-inf") # "score" means higher is better 
 
         # weeeeeeeeeeee
-        (self.model, self.optim, self.train_dl, self.val_dl) = self.accelerator.prepare(
-            self.model, self.optim, self.train_dl, self.val_dl)
+        (self.model, self.optim, self.scheduler, self.train_dl) = self.accelerator.prepare(
+            self.model, self.optim, self.scheduler, self.train_dl)
         if self.accelerator.is_main_process:
             wandb.watch(self.model)
 
@@ -99,15 +118,17 @@ class Trainer:
     def finish(self):
         self.accelerator.end_training()
 
-    def val(self):
+    def val(self, batch):
         with torch.inference_mode():
-            # <<<<<<< do some validation <<<<<<<
-            # 
-            # # remeber, score is higher = better
-            # score = self.gather(...).cpu().item()
-            # metrics = { "val/metric": ... }
-            # 
-            # >>>>>>> do some validation >>>>>>>
+            self.model.eval()
+
+            result = self.model(**batch)
+            loss = self.gather(result.loss).cpu().item()
+
+            score = 1/loss  # because higher score is better
+            metrics = { "val/loss": loss }
+
+            self.model.train()
 
             return score, metrics
 
@@ -117,11 +138,9 @@ class Trainer:
         # because sometimes the load function may skip some epochs
         dl = self.train_dl if not self.train_dl_skipped else self.train_dl_skipped
         for indx, i in enumerate(dl):
-            # <<<<<<< do some setup <<<<<<<
-            # >>>>>>> do some setup >>>>>>>
-
             # take a step
             loss, train_metrics = self.step(i)
+            train_metrics["train/lr"] = self.optim.param_groups[0]["lr"]
 
             # perform logging, and then increment
             # (we do this because global_step_counter_
@@ -153,22 +172,14 @@ class Trainer:
         self.train_dl_skipped = None
 
     def step(self, batch):
-        # <<<<<<< do some work <<<<<<<
-        # 
-        # loss = self.model(**batch, ...)
-        #
-        # >>>>>>> do some work >>>>>>>
-
+        loss = self.model(**batch).loss
         self.accelerator.backward(loss)
         self.optim.step()
+        self.scheduler.step()
         self.optim.zero_grad()
 
-        # <<<<<<< prepare metrics <<<<<<<
-        # 
-        # loss = self.gather(loss).cpu().item() 
-        # metrics = { "train/metric": ... }
-        #
-        # >>>>>>> prepare metrics >>>>>>>
+        loss = self.gather(loss).cpu().item() 
+        metrics = { "train/loss": loss }
 
         return loss, metrics
         

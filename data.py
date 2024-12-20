@@ -39,8 +39,50 @@ import datasets
 from datasets import Dataset, DatasetDict
 from tqdm import tqdm
 
+from datasets import load_dataset
+
 tqdm.pandas()
 
-# <<<<<<< load a dataset or something <<<<<<<
-# >>>>>>> load a dataset or something >>>>>>>
+from datasets import load_dataset
+from functools import partial
+from transformers import DataCollatorForLanguageModeling
+
+def tokenize(tokenizer, config, example):
+    return tokenizer(example["text"],
+                     return_special_tokens_mask=True,
+                     truncation=True,
+                     padding=True,
+                     max_length=config.max_position_embeddings)
+
+def get_dataloader(dataset, tokenizer, config, batch_size=256):
+    """gets dataloader for training from HF dataset
+
+    Arguments
+    ---------
+        dataset: HF dataset
+                dataset to get dataloader from, must have "text" column
+        tokenizer: HF tokenizer
+                tokenizer to use for tokenization
+        config: HF config
+                config for model, useful for `max_position_embeddings`
+        batch_size: int
+                batch size for dataloader
+
+    Returns
+    -------
+        torch.utils.data.DataLoader
+            dataloader for training
+    """
+
+
+    # apparently the newer LMs' tokenizer doesn't have a `pad_token`
+    # so we need to add it
+    tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
+
+    tokenized = dataset.map(partial(tokenize, tokenizer, config), batched=True)
+    tokenized = tokenized.remove_columns(["text"])
+    collator = DataCollatorForLanguageModeling(tokenizer, pad_to_multiple_of=16, mlm=False, return_tensors="pt")
+
+    return DataLoader(tokenized, collate_fn=collator, batch_size=batch_size)
+
 

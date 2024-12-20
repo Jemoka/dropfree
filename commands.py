@@ -15,13 +15,7 @@ def execute(args):
     else:
         trainer = Trainer(args)
 
-    # <<<<<<< do something with trainer <<<<<<<
-    #
-    # trainer.train()
-    #
-    # >>>>>>> do something with trainer >>>>>>>
-
-    raise NotImplementedError("ideally, this does something")
+    trainer.train()
 
 def configure(experiment, **kwargs):
     """configure a run from arguments

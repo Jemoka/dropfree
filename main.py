@@ -17,10 +17,6 @@ load_dotenv()
 
 logger.remove()
 
-torch.manual_seed(0)
-random.seed(0)
-np.random.seed(0)
-
 class InterceptHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         # Get corresponding Loguru level if it exists.
@@ -51,6 +47,10 @@ if __name__ == "__main__":
         colorize=True,
         enqueue=True
     )
+
+    torch.manual_seed(args.seed)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
 
     execute(args)
 
