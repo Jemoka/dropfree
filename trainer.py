@@ -84,7 +84,7 @@ class Trainer:
 
         # scheduler
         # TODO hard coding (because the number of iters is hard coded)
-        TOTAL_ITERS = 134318121 // (args.batch_size * self.accelerator.state.num_processes)
+        TOTAL_ITERS = (134318121 // args.batch_size) // self.accelerator.state.num_processes
         warmup_steps = int(args.warmup_pct*TOTAL_ITERS)
 
         scheduler1 = LinearLR(self.optim, start_factor=1e-20, end_factor=1, total_iters=warmup_steps)
@@ -95,7 +95,7 @@ class Trainer:
 
 
         # compute training size + the counter (useful for mid-checkpoint recovery) 
-        self.total_batches = len(self.train_dl)
+        self.total_batches = 134318121 // args.batch_size
         self.global_step_counter_ = 0
         self.best_val_score_ = float("-inf") # "score" means higher is better 
 
