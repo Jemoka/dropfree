@@ -147,7 +147,7 @@ class Trainer:
                     logger.info("VAL | {} | score {}", self.global_step_counter_, score)
 
                 if score > self.best_val_score_ and self.accelerator.is_main_process:
-                    logger.info("VAL | BEST SCORE | score {}", self.global_step_counter_, score)
+                    logger.info("VAL | BEST SCORE | score {}", score)
                     self.best_val_score_ = score
                     self.save(self.best_dir)
                 continue # skip the validation batch
