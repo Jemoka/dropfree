@@ -65,7 +65,7 @@ class Trainer:
 
         # enable a selective amount of dropout
         # which is the main variable we are testing
-        self.model = AutoModelForCausalLM.from_config(config)
+        self.model = AutoModelForCausalLM.from_config(self.config)
         self.model.train()
 
         # set up data
