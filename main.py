@@ -52,18 +52,5 @@ if __name__ == "__main__":
     random.seed(args.seed)
     np.random.seed(args.seed)
 
-
-    from ray.train.torch import TorchTrainer
-    from ray.train import ScalingConfig
-    from functools import partial
-
-    trainer = TorchTrainer(
-        partial(execute, args),
-        scaling_config = ScalingConfig(
-            num_workers=args.gpu,
-            use_gpu=True,
-            placement_strategy="SPREAD"
-        )
-    )
-    trainer.fit()
+    execute(args)
 
