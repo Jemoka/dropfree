@@ -133,7 +133,8 @@ class Trainer:
             return score, metrics
 
     def epoch(self):
-        logger.info("BEGIN EPOCH")
+        if self.accelerator.is_main_process:
+            logger.info("BEGIN EPOCH")
 
         # because sometimes the load function may skip some epochs
         dl = self.train_dl if not self.train_dl_skipped else self.train_dl_skipped
@@ -148,22 +149,25 @@ class Trainer:
             #  many we need to skip for warm start)
             if indx % self.args.report_interval == 0 and indx != 0:
                 self.accelerator.log(train_metrics, step=self.global_step_counter_)
-                logger.info("TRAIN | {}/{} | loss {}", self.global_step_counter_,
-                            self.total_batches*self.args.epochs, loss)
+                if self.accelerator.is_main_process:
+                    logger.info("TRAIN | {}/{} | loss {}", self.global_step_counter_,
+                                self.total_batches*self.args.epochs, loss)
             self.global_step_counter_ += 1
 
             logger.debug("STEP | {} | {}", indx, train_metrics)
 
             # save a checkpoint, if needed
-            if indx % self.args.checkpoint_interval == 0 and indx != 0:
+            if (indx % self.args.checkpoint_interval == 0 and indx != 0 and
+                self.accelerator.is_main_process):
                 self.save(self.save_dir)
             # perform validation and save a checkpoint, if needed
             if indx % self.args.validation_interval == 0 and indx != 0:
                 score, val_metrics = self.val()
                 self.accelerator.log(val_metrics, step=self.global_step_counter_)
-                logger.info("VAL | {} | score {}", self.global_step_counter_, score)
+                if self.accelerator.is_main_process:
+                    logger.info("VAL | {} | score {}", self.global_step_counter_, score)
 
-                if score > self.best_val_score_:
+                if score > self.best_val_score_ and self.accelerator.is_main_process:
                     logger.info("VAL | BEST SCORE | score {}", self.global_step_counter_, score)
                     self.best_val_score_ = score
                     self.save(self.best_dir)
