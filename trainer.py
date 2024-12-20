@@ -139,6 +139,19 @@ class Trainer:
         # because sometimes the load function may skip some epochs
         dl = self.train_dl if not self.train_dl_skipped else self.train_dl_skipped
         for indx, i in enumerate(dl):
+            # perform validation and save a checkpoint, if needed
+            if indx % self.args.validation_interval == 0 and indx != 0:
+                score, val_metrics = self.val(i)
+                self.accelerator.log(val_metrics, step=self.global_step_counter_)
+                if self.accelerator.is_main_process:
+                    logger.info("VAL | {} | score {}", self.global_step_counter_, score)
+
+                if score > self.best_val_score_ and self.accelerator.is_main_process:
+                    logger.info("VAL | BEST SCORE | score {}", self.global_step_counter_, score)
+                    self.best_val_score_ = score
+                    self.save(self.best_dir)
+                continue # skip the validation batch
+
             # take a step
             loss, train_metrics = self.step(i)
             train_metrics["train/lr"] = self.optim.param_groups[0]["lr"]
@@ -160,17 +173,6 @@ class Trainer:
             if (indx % self.args.checkpoint_interval == 0 and indx != 0 and
                 self.accelerator.is_main_process):
                 self.save(self.save_dir)
-            # perform validation and save a checkpoint, if needed
-            if indx % self.args.validation_interval == 0 and indx != 0:
-                score, val_metrics = self.val()
-                self.accelerator.log(val_metrics, step=self.global_step_counter_)
-                if self.accelerator.is_main_process:
-                    logger.info("VAL | {} | score {}", self.global_step_counter_, score)
-
-                if score > self.best_val_score_ and self.accelerator.is_main_process:
-                    logger.info("VAL | BEST SCORE | score {}", self.global_step_counter_, score)
-                    self.best_val_score_ = score
-                    self.save(self.best_dir)
 
         # we are done using the skipped DL since we finished the remaining batch
         self.train_dl_skipped = None
