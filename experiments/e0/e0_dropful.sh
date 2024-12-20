@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --account=nlp
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:a6000:4
 #SBATCH --job-name=houjun-dropfree-e0_dropful
 #SBATCH --mem=32G
