@@ -80,7 +80,8 @@ class Trainer:
         self.train_dl_skipped = None 
 
         # optimizer
-        self.optim = AdamW(self.model.parameters(), lr=args.lr)
+        self.optim = AdamW(self.model.parameters(), lr=args.lr, betas=[args.beta1, args.beta2],
+                           eps=args.eps, weight_decay=args.weight_decay)
 
         # scheduler
         # TODO hard coding (because the number of iters is hard coded)
@@ -180,6 +181,8 @@ class Trainer:
     def step(self, batch):
         loss = self.model(**batch).loss
         self.accelerator.backward(loss)
+        if self.accelerator.sync_gradients:
+            self.accelerator.clip_grad_norm_(self.model.parameters(), self.args.gradient_clip)
         self.optim.step()
         self.scheduler.step()
         self.optim.zero_grad()
