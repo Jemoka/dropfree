@@ -3,10 +3,10 @@
 #SBATCH --account=nlp
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:a6000:4
-#SBATCH --job-name=houjun-dropfree-e0_dropful
+#SBATCH --job-name=houjun-dropfree-e0_dryrun_160m_0.5
 #SBATCH --mem=32G
 #SBATCH --open-mode=append
-#SBATCH --output=./logs/e0_dropful.out
+#SBATCH --output=./logs/e0_dryrun_160m_0.5.out
 #SBATCH --partition=jag-standard
 #SBATCH --time=14-0
 
