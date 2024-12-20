@@ -6,7 +6,6 @@ parser = argparse.ArgumentParser(prog='dropfree')
 parser.add_argument("experiment", help="name for the experiment", type=str)
 parser.add_argument('-v', '--verbose', action='count', default=0, help="log level")
 parser.add_argument("--wandb", default=False, action="store_true", help="whether to use wandb")
-parser.add_argument("--gpu", default=1, type=int, help="how many GPUs do we have?")
 parser.add_argument("--seed", default=0, type=int, help="random seed")
 parser.add_argument("--warm_start", default=None, type=str, help="recover trainer from this path")
 
