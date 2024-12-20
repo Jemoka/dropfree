@@ -65,4 +65,5 @@ if __name__ == "__main__":
             placement_strategy="SPREAD"
         )
     )
+    trainer.fit()
 
