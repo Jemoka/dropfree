@@ -84,7 +84,7 @@ class Trainer:
 
         # scheduler
         # TODO hard coding (because the number of iters is hard coded)
-        TOTAL_ITERS = 134318121 // (self.batch_size * self.accelerator.state.num_processes)
+        TOTAL_ITERS = 134318121 // (args.batch_size * self.accelerator.state.num_processes)
         warmup_steps = int(args.warmup_pct*TOTAL_ITERS)
 
         scheduler1 = LinearLR(self.optim, start_factor=1e-20, end_factor=1, total_iters=warmup_steps)
