@@ -25,19 +25,21 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 config = AutoConfig.from_pretrained("EleutherAI/pythia-160m")
 
-config.attention_probs_dropout_prob = 0.1
-config.hidden_dropout_prob = 0.1
+config.attention_dropout = 0.7
+config.hidden_dropout = 0.7
+config.maximum_chicken = 0.1
+config
 config.max_position_embeddings
 
 
-model = AutoModelForCausalLM.from_config(config)
-model
+# model = AutoModelForCausalLM.from_config(config)
+# model
 
 
-from data import get_dataloader
+# from data import get_dataloader
 
-dataset = load_dataset("EleutherAI/the_pile_deduplicated", streaming=True)["train"]
-tokenizer = AutoTokenizer.from_pretrained("EleutherAI/pythia-160m")
+# dataset = load_dataset("EleutherAI/the_pile_deduplicated", streaming=True)["train"]
+# tokenizer = AutoTokenizer.from_pretrained("EleutherAI/pythia-160m")
 
 # dl = get_dataloader(dataset, tokenizer, config, 3)
 # tmp = next(iter(dl))
