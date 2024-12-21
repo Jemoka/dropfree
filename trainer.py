@@ -60,8 +60,8 @@ class Trainer:
         self.config = AutoConfig.from_pretrained(args.architecture)
         self.tokenizer = AutoTokenizer.from_pretrained(args.architecture)
 
-        self.config.attention_probs_dropout_prob = args.dropout
-        self.config.hidden_dropout_prob = args.dropout
+        self.config.attention_dropout = args.dropout
+        self.config.hidden_dropout = args.dropout
 
         # enable a selective amount of dropout
         # which is the main variable we are testing
