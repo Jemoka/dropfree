@@ -2,7 +2,7 @@
 
 #SBATCH --account=nlp
 #SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:a6000:2
+#SBATCH --gres=gpu:a6000ada:2
 #SBATCH --job-name=houjun-dropfree-e1_160m-d0.0
 #SBATCH --mem=32G
 #SBATCH --open-mode=append
