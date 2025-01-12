@@ -21,7 +21,7 @@ import torch.nn.functional as F
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR
 
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 
 # huggingface
 from datasets import load_dataset
@@ -124,7 +124,7 @@ class Trainer:
 
     def val(self, batch):
         with torch.inference_mode():
-            with autocast(dtype=torch.bfloat16):
+            with autocast("cuda", dtype=torch.bfloat16):
                 self.model.eval()
 
                 result = self.model(**batch)
@@ -183,7 +183,7 @@ class Trainer:
 
     def step(self, batch):
 
-        with autocast(dtype=torch.bfloat16):
+        with autocast("cuda", dtype=torch.bfloat16):
             loss = self.model(**batch).loss
             self.accelerator.backward(loss)
             if self.accelerator.sync_gradients:
