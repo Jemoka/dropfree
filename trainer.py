@@ -171,8 +171,7 @@ class Trainer:
             logger.debug("STEP | {} | {}", indx, train_metrics)
 
             # save a checkpoint, if needed
-            if (indx % self.args.checkpoint_interval == 0 and indx != 0 and
-                self.accelerator.is_main_process):
+            if indx % self.args.checkpoint_interval == 0 and indx != 0:
                 self.save(self.save_dir)
 
         # we are done using the skipped DL since we finished the remaining batch
