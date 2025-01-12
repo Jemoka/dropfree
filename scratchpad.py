@@ -20,20 +20,8 @@ logger.add(
 from trainer import Trainer
 from commands import configure
 
-trainer_df = Trainer.from_pretrained("output/e0_dryrun_160m_0.0/best")
-trainer_do = Trainer.from_pretrained("output/e0_dryrun_160m_0.3/best")
 
-model_df = trainer_df.model
-model_do = trainer_do.model
+configure(architecture="")
 
-tokenizer = trainer_df.tokenizer
 
-prompt = tokenizer("The capital of Canada is the city of", return_tensors="pt")
-prompt
-
-model_df_out = model_df.generate(prompt["input_ids"].cuda(), repetition_penalty=1.1)
-model_do_out = model_do.generate(prompt["input_ids"].cuda(), repetition_penalty=1.1)
-
-tokenizer.batch_decode(model_df_out)
-tokenizer.batch_decode(model_do_out)
 

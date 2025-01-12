@@ -21,6 +21,8 @@ import torch.nn.functional as F
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR
 
+from torch.cuda.amp import autocast
+
 # huggingface
 from datasets import load_dataset
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
@@ -65,7 +67,8 @@ class Trainer:
 
         # enable a selective amount of dropout
         # which is the main variable we are testing
-        self.model = AutoModelForCausalLM.from_config(self.config)
+        self.model = AutoModelForCausalLM.from_config(self.config,
+                                                      torch_dtype=torch.bfloat16)
         self.model.train()
 
         # set up data
@@ -121,17 +124,18 @@ class Trainer:
 
     def val(self, batch):
         with torch.inference_mode():
-            self.model.eval()
+            with autocast(dtype=torch.bfloat16):
+                self.model.eval()
 
-            result = self.model(**batch)
-            loss = self.gather(result.loss).cpu().item()
+                result = self.model(**batch)
+                loss = self.gather(result.loss).cpu().item()
 
-            score = 1/loss  # because higher score is better
-            metrics = { "val/loss": loss }
+                score = 1/loss  # because higher score is better
+                metrics = { "val/loss": loss }
 
-            self.model.train()
+                self.model.train()
 
-            return score, metrics
+                return score, metrics
 
     def epoch(self):
         if self.accelerator.is_main_process:
@@ -178,16 +182,18 @@ class Trainer:
         self.train_dl_skipped = None
 
     def step(self, batch):
-        loss = self.model(**batch).loss
-        self.accelerator.backward(loss)
-        if self.accelerator.sync_gradients:
-            self.accelerator.clip_grad_norm_(self.model.parameters(), self.args.gradient_clip)
-        self.optim.step()
-        self.scheduler.step()
-        self.optim.zero_grad()
 
-        loss = self.gather(loss).cpu().item() 
-        metrics = { "train/loss": loss }
+        with autocast(dtype=torch.bfloat16):
+            loss = self.model(**batch).loss
+            self.accelerator.backward(loss)
+            if self.accelerator.sync_gradients:
+                self.accelerator.clip_grad_norm_(self.model.parameters(), self.args.gradient_clip)
+            self.optim.step()
+            self.scheduler.step()
+            self.optim.zero_grad()
+
+            loss = self.gather(loss).cpu().item() 
+            metrics = { "train/loss": loss }
 
         return loss, metrics
         
