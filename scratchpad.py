@@ -20,49 +20,20 @@ logger.add(
 from trainer import Trainer
 from commands import configure
 
+trainer_df = Trainer.from_pretrained("output/e0_dryrun_160m_0.0/best")
+trainer_do = Trainer.from_pretrained("output/e0_dryrun_160m_0.3/best")
 
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+model_df = trainer_df.model
+model_do = trainer_do.model
 
-trainer = Trainer.from_pretrained("./output/e0_dryrun_160m_0.0/best")
+tokenizer = trainer_df.tokenizer
 
-model = trainer.model
-tokenizer = trainer.tokenizer
+prompt = tokenizer("The capital of Canada is the city of", return_tensors="pt")
+prompt
 
-result = model.generate(**tokenizer(["this is surprisingly "], return_tensors="pt").to("cuda"),
-                        do_sample=True,
-                        top_p=0.9,
-                        repetition_penalty=1.1,
-                        max_length=256)
-print(tokenizer.batch_decode(result)[0])
+model_df_out = model_df.generate(prompt["input_ids"].cuda(), repetition_penalty=1.1)
+model_do_out = model_do.generate(prompt["input_ids"].cuda(), repetition_penalty=1.1)
 
-
-
-
-
-# import os
-# os.listdir("./output")
-
-# config = AutoConfig.from_pretrained("EleutherAI/pythia-160m")
-
-# config.attention_dropout = 0.7
-# config.hidden_dropout = 0.7
-# config.maximum_chicken = 0.1
-# config
-# config.max_position_embeddings
-
-# print("ehwo")
-
-# model = AutoModelForCausalLM.from_config(config)
-# model
-
-
-# from data import get_dataloader
-
-# dataset = load_dataset("EleutherAI/the_pile_deduplicated", streaming=True)["train"]
-# tokenizer = AutoTokenizer.from_pretrained("EleutherAI/pythia-160m")
-
-# dl = get_dataloader(dataset, tokenizer, config, 3)
-# tmp = next(iter(dl))
-# tmp["input_ids"].shape
-
+tokenizer.batch_decode(model_df_out)
+tokenizer.batch_decode(model_do_out)
 

@@ -53,7 +53,7 @@ class Trainer:
         save_dir = Path(args.out_dir) / args.experiment
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        self.save_dir = str(save_dir / "checkpoint")
+        self.save_dir = save_dir / "checkpoint"
         self.best_dir = str(save_dir / "best")
 
         # set up models
@@ -85,7 +85,7 @@ class Trainer:
 
         # scheduler
         # TODO hard coding (because the number of iters is hard coded)
-        TOTAL_ITERS = (134318121 // args.batch_size) // self.accelerator.state.num_processes
+        TOTAL_ITERS = (134318121 // args.batch_size)
         warmup_steps = int(args.warmup_pct*TOTAL_ITERS)
 
         scheduler1 = LinearLR(self.optim, start_factor=1e-20, end_factor=1, total_iters=warmup_steps)
@@ -172,7 +172,7 @@ class Trainer:
 
             # save a checkpoint, if needed
             if indx % self.args.checkpoint_interval == 0 and indx != 0:
-                self.save(self.save_dir)
+                self.save(str(self.save_dir/str(indx)))
 
         # we are done using the skipped DL since we finished the remaining batch
         self.train_dl_skipped = None
