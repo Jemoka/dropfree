@@ -150,7 +150,7 @@ class Trainer:
                 if self.accelerator.is_main_process:
                     logger.info("VAL | {} | score {}", self.global_step_counter_, score)
 
-                if score > self.best_val_score_ and self.accelerator.is_main_process:
+                if score > self.best_val_score_:
                     logger.info("VAL | BEST SCORE | score {}", score)
                     self.best_val_score_ = score
                     self.save(self.best_dir)
@@ -211,7 +211,9 @@ class Trainer:
                                                                     self.global_step_counter_ % self.total_batches)
 
     def save(self, path):
-        logger.debug("CHECKPOINT | saving checkpoint at {}", path)
+        if self.accelerator.is_main_process:
+            logger.debug("CHECKPOINT | saving checkpoint at {}", path)
+        self.accelerator.wait_for_everyone()
         self.accelerator.save_state(path)
         with open(os.path.join(path, "config.json"), 'w') as df:
             json.dump({
