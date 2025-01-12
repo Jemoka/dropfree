@@ -8,7 +8,7 @@
 #SBATCH --open-mode=append
 #SBATCH --output=./logs/e1_1.4b-d0.0
 #SBATCH --nodelist=sphinx3,sphinx4,sphinx5,sphinx6,sphinx7,sphinx8
-#SBATCH --nodes=1
+#SBATCH --ntasks=1
 #SBATCH --partition=sphinx
 #SBATCH --time=14-0
 
