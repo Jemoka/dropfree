@@ -21,7 +21,10 @@ from trainer import Trainer
 from commands import configure
 
 
-configure(architecture="")
-
-
+config = configure("test",
+                   lr=1.2e-6,
+                   batch_size=2,
+                   architecture="EleutherAI/pythia-6.9b")
+trainer = Trainer(config)
+trainer.train()
 
