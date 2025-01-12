@@ -67,8 +67,7 @@ class Trainer:
 
         # enable a selective amount of dropout
         # which is the main variable we are testing
-        self.model = AutoModelForCausalLM.from_config(self.config,
-                                                      torch_dtype=torch.bfloat16)
+        self.model = AutoModelForCausalLM.from_config(self.config)
         self.model.train()
 
         # set up data
