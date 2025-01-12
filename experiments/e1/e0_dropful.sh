@@ -1,0 +1,17 @@
+#!/bin/bash
+
+#SBATCH --account=nlp
+#SBATCH --cpus-per-task=2
+#SBATCH --gres=gpu:a100:2
+#SBATCH --job-name=houjun-dropfree-e1_1.4b-d0.0
+#SBATCH --mem=32G
+#SBATCH --open-mode=append
+#SBATCH --output=./logs/e1_1.4b-d0.0
+#SBATCH --nodelist=sphinx3,sphinx4,sphinx5,sphinx6,sphinx7,sphinx8
+#SBATCH --nodes=1
+#SBATCH --partition=sphinx
+#SBATCH --time=14-0
+
+cd .
+source .venv/bin/activate
+accelerate launch --config_file ./experiments/e1/config.yaml main.py e1_1.4b-d0.0 --dropout 0.0 --batch_size 2 --checkpoint_interval 131072 --validation_interval 131072 --report_interval 4096 --architecture "EleutherAI/pythia-1.4b" --wandb 
