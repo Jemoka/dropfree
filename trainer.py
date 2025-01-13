@@ -143,6 +143,10 @@ class Trainer:
         # because sometimes the load function may skip some epochs
         dl = self.train_dl if not self.train_dl_skipped else self.train_dl_skipped
         for indx, i in enumerate(dl):
+            # save a checkpoint, if needed
+            if indx % self.args.checkpoint_interval == 0 and indx != 0:
+                self.save(str(self.save_dir/str(indx)))
+
             # perform validation and save a checkpoint, if needed
             if indx % self.args.validation_interval == 0 and indx != 0:
                 score, val_metrics = self.val(i)
@@ -172,10 +176,6 @@ class Trainer:
             self.global_step_counter_ += 1
 
             logger.debug("STEP | {} | {}", indx, train_metrics)
-
-            # save a checkpoint, if needed
-            if indx % self.args.checkpoint_interval == 0 and indx != 0:
-                self.save(str(self.save_dir/str(indx)))
 
         # we are done using the skipped DL since we finished the remaining batch
         self.train_dl_skipped = None
