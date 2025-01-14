@@ -13,4 +13,4 @@
 
 cd .
 source .venv/bin/activate
-accelerate launch --main_process_port 29501 --config_file ./experiments/e1/config.yaml main.py e1_160m-d0.3 --dropout 0.3 --batch_size 16 --checkpoint_interval 16384 --validation_interval 16384 --report_interval 256 --architecture "EleutherAI/pythia-160m" --wandb 
+accelerate launch --main_process_port 29501 --config_file ./experiments/e1/config.yaml main.py e1_160m-d0.3 --dropout 0.3 --batch_size 16 --checkpoint_interval 16384 --validation_interval 16384 --report_interval 256 --architecture "EleutherAI/pythia-160m" --wandb  --lr 0.0006 --warm_start ./output/e1_160m-d0.3/best 
