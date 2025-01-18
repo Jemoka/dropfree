@@ -12,7 +12,7 @@ def run(path):
     checkpoints = [Path(i) for i in glob(str(Path(path) / "checkpoint" / "**" / "pytorch_model_fsdp_0"))]
     optimizers = [Path(i) for i in glob(str(Path(path) / "checkpoint" / "**" / "optimizer_0"))]
 
-    for i,j in zip(sorted(checkpoints), sorted(optimizers)):
+    for checkpoint,optimizer in zip(sorted(checkpoints), sorted(optimizers)):
         merge_fsdp_weights(checkpoint,
                         str(checkpoint.parent/"pytorch_model_merged"),
                         safe_serialization=True)
