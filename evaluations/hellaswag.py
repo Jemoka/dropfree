@@ -137,7 +137,7 @@ def score_hellaswag(trainer, slice="validation", batch_size=512):
 @click.command()
 @click.argument("weights", type=str)
 @click.argument("output", type=click.File('w'))
-@click.option("--subset", type=str, default="validation", help="Which HellaSwag slice to score?", multiple=True)
+@click.option("--subset", type=str, default="validation", help="Which HellaSwag slice to score?")
 @click.option("--batch_size", type=int, default=512, help="How many samples to score at once?")
 def blimp(weights, output, subset, batch_size):
     trainer = Trainer.from_pretrained(weights)
