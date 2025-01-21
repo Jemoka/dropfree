@@ -112,9 +112,9 @@ def score_hellaswag(trainer, slice="validation", batch_size=512):
     total_count = 0
     total_true = 0
 
-    for a,b,c,d,label in zip(iter(dl_0), iter(dl_1),
-                            iter(dl_2), iter(dl_3),
-                            iter(dl_labels)):
+    for a,b,c,d,label in tqdm(zip(iter(dl_0), iter(dl_1),
+                                  iter(dl_2), iter(dl_3),
+                                  iter(dl_labels)), total=len(dl_0)):
         with torch.inference_mode():
             a_out = model(**a)
             b_out = model(**b)
