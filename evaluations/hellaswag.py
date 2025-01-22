@@ -145,7 +145,7 @@ def blimp(weights, output, subset, batch_size):
     # collate scores
     scores = {
         "slice": subset,
-        "accuracy": score_blimp(trainer, subset, batch_size=batch_size)
+        "accuracy": score_hellaswag(trainer, subset, batch_size=batch_size)
     }
     json.dump(scores, output, indent=4)
 

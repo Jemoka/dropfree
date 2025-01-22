@@ -127,14 +127,14 @@ def blimp(weights, output, subset, batch_size):
     # validate that we are actually scoring a valid set
     if "all" in subset:
         subset = subsets
-    for i in subsets:
+    for i in subset:
         if i not in subsets:
             raise ValueError(f"Unrecognized subset: {i}")
 
     # collate scores
     scores = {}
-    for i in subsets:
-        scores[i] = score_blimp(trainer, subset, batch_size=batch_size)
+    for i in subset:
+        scores[i] = score_blimp(trainer, i, batch_size=batch_size)
 
     json.dump(scores, output, indent=4)
 
