@@ -210,8 +210,8 @@ class Trainer:
         self.best_val_score_ = data.get("score", 0)
 
         # skip batches
-        self.train_dl_skipped = self.accelerator.skip_first_batches(self.train_dl,
-                                                                    self.global_step_counter_ % self.total_batches)
+        # self.train_dl_skipped = self.accelerator.skip_first_batches(self.train_dl,
+        #                                                             self.global_step_counter_ % self.total_batches)
 
     def save(self, path):
         if self.accelerator.is_main_process:
