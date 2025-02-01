@@ -1,0 +1,19 @@
+#!/bin/bash
+
+#SBATCH --account=nlp
+#SBATCH --cpus-per-task=2
+#SBATCH --gres=gpu:a6000ada:1
+#SBATCH --job-name=houjun-dropfree-e2_1.4b-hellaswag
+#SBATCH --mem=32G
+#SBATCH --open-mode=append
+#SBATCH --output=./logs/e2_1.4b-hellaswag
+#SBATCH --ntasks=1
+#SBATCH --partition=jag-standard
+#SBATCH --time=14-0
+
+cd .
+source .venv/bin/activate
+for i in ./output/e1_1.4b-d0.*/checkpoint/*; do
+    python3 ./evaluations/hellaswag.py $i results/hellaswag/$(basename "$(dirname "$(dirname "$i")")")_$(basename "$i").json --batch_size 32
+done
+
