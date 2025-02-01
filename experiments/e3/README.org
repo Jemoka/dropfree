@@ -1,0 +1,4 @@
+* experiment 3: disable dropout
+Because some work has shown that early dropout helps, we want to see if it does that for our case. We are going to train, as with others, a million (=1179648=) steps; the early dropout paper (https://arxiv.org/pdf/2303.01500) applied the constant dropout variant (appendix D) by 20 epochs out of their 300, so that's 0.066. So, that's ~78000 steps.
+
+So let's do that! Let's do all of the previous experiments, but now applying dropout by only 78000 steps.

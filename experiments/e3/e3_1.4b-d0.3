@@ -1,0 +1,17 @@
+#!/bin/bash
+
+#SBATCH --account=nlp
+#SBATCH --cpus-per-task=2
+#SBATCH --gres=gpu:a100:2
+#SBATCH --job-name=houjun-dropfree-e3_1.4b-d0.3
+#SBATCH --mem=32G
+#SBATCH --open-mode=append
+#SBATCH --output=./logs/e3_1.4b-d0.3
+#SBATCH --nodelist=sphinx5
+#SBATCH --ntasks=1
+#SBATCH --partition=sphinx
+#SBATCH --time=14-0
+
+cd .
+source .venv/bin/activate
+accelerate launch --main_process_port 29503 --config_file ./experiments/e3/config.yaml main.py e3_1.4b-d0.3 --dropout 0.3 --batch_size 2 --checkpoint_interval 131072 --validation_interval 131072 --report_interval 256 --architecture "EleutherAI/pythia-1.4b" --wandb --lr 0.00001 --warm_start ./output/e3_1.4b-d0.3/best --disable_dropout_steps 78000

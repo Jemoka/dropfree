@@ -1,0 +1,2 @@
+* experiment 2: BLIMP + HellaSwag
+...so we can measure what we trained
