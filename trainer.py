@@ -105,12 +105,36 @@ class Trainer:
         self.global_step_counter_ = 0
         self.best_val_score_ = float("-inf") # "score" means higher is better 
 
+        # check if dropout is disabled, this may get updated by
+        # the trainer dynamically if we want to early dropout
+        self.__dropout_disabled = (args.dropout == 0.0)
+
         # weeeeeeeeeeee
         (self.model, self.optim, self.scheduler, self.train_dl) = self.accelerator.prepare(
             self.model, self.optim, self.scheduler, self.train_dl)
         if self.accelerator.is_main_process:
             wandb.watch(self.model)
 
+    def stop_dropout_(self):
+        """stop dropout for the model, if any
+
+        useful for "early dropout" type experiments.
+        """
+
+        logger.info("Stopping any configured dropout!!")
+
+        # get underlying module in self.model, if exists
+        # should handle FSDP, DDP, and Deepspeed
+        if hasattr(self.model, "module"):
+            model = self.model.module
+        else:
+            model = self.model
+        model.gpt_neox.embed_dropout.p = 0.0
+        for i in model.gpt_neox.layers:
+            i.post_attention_dropout.p = 0.0
+            i.post_mlp_dropout.p = 0.0
+            i.attention.attention_dropout.p = 0.0
+        
     def train(self):
         for eid in range(self.args.epochs):
             if self.global_step_counter_ >= ((eid+1)*self.total_batches):
@@ -184,6 +208,12 @@ class Trainer:
         self.train_dl_skipped = None
 
     def step(self, batch):
+        # check if dropout needs disabling, if it does, do it
+        if (hasattr(self.args, "disable_dropout_steps") and
+            self.global_step_counter_ > self.args.disable_dropout_steps and
+            not self.__dropout_disabled):
+            self.stop_dropout_()
+            self.__dropout_disabled = True
 
         with autocast("cuda", dtype=torch.bfloat16):
             loss = self.model(**batch).loss
