@@ -129,7 +129,7 @@ class Trainer:
             model = self.model.module
         else:
             model = self.model
-        model.gpt_neox.embed_dropout.p = 0.0
+        model.gpt_neox.emb_dropout.p = 0.0
         for i in model.gpt_neox.layers:
             i.post_attention_dropout.p = 0.0
             i.post_mlp_dropout.p = 0.0
