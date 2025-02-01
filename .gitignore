@@ -13,3 +13,5 @@ wheels/
 models
 output
 logs
+results
+wandb

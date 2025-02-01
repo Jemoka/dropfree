@@ -40,10 +40,13 @@ from data import *
 R = Random(7)
 
 class Trainer:
-    def __init__(self, args):
+    def __init__(self, args, accelerator=None):
         # set up the trainer
         self.args = args
-        self.accelerator = Accelerator(log_with="wandb")
+        if not accelerator:
+            self.accelerator = Accelerator(log_with="wandb")
+        else:
+            self.accelerator = accelerator
         self.accelerator.init_trackers(
             project_name="dropfree", 
             config=vars(args),
@@ -167,6 +170,10 @@ class Trainer:
         # because sometimes the load function may skip some epochs
         dl = self.train_dl if not self.train_dl_skipped else self.train_dl_skipped
         for indx, i in enumerate(dl):
+            # save a checkpoint, if needed
+            if indx % self.args.checkpoint_interval == 0 and indx != 0:
+                self.save(str(self.save_dir/str(indx)))
+
             # perform validation and save a checkpoint, if needed
             if indx % self.args.validation_interval == 0 and indx != 0:
                 score, val_metrics = self.val(i)
@@ -196,10 +203,6 @@ class Trainer:
             self.global_step_counter_ += 1
 
             logger.debug("STEP | {} | {}", indx, train_metrics)
-
-            # save a checkpoint, if needed
-            if indx % self.args.checkpoint_interval == 0 and indx != 0:
-                self.save(str(self.save_dir/str(indx)))
 
         # we are done using the skipped DL since we finished the remaining batch
         self.train_dl_skipped = None
@@ -237,8 +240,8 @@ class Trainer:
         self.best_val_score_ = data.get("score", 0)
 
         # skip batches
-        self.train_dl_skipped = self.accelerator.skip_first_batches(self.train_dl,
-                                                                    self.global_step_counter_ % self.total_batches)
+        # self.train_dl_skipped = self.accelerator.skip_first_batches(self.train_dl,
+        #                                                             self.global_step_counter_ % self.total_batches)
 
     def save(self, path):
         if self.accelerator.is_main_process:
@@ -253,12 +256,12 @@ class Trainer:
             }, df)
 
     @classmethod
-    def from_pretrained(cls, path, disable_wandb=True):
+    def from_pretrained(cls, path, disable_wandb=True, accelerator=None):
         with open(os.path.join(path, "config.json"), 'r') as df:
             data = json.load(df)
         args = Namespace(**data.get("config", {}))
         args.wandb = False
-        new = cls(args)
+        new = cls(args, accelerator)
         new.load(path)
 
         if disable_wandb:

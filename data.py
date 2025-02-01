@@ -79,7 +79,7 @@ def get_dataloader(dataset, tokenizer, config, batch_size=256):
     # so we need to add it
     tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
 
-    tokenized = dataset.map(partial(tokenize, tokenizer, config), batched=True)
+    tokenized = dataset.shuffle().map(partial(tokenize, tokenizer, config), batched=True)
     tokenized = tokenized.remove_columns(["text"])
     collator = DataCollatorForLanguageModeling(tokenizer, pad_to_multiple_of=16, mlm=False, return_tensors="pt")
 

@@ -14,4 +14,4 @@
 
 cd .
 source .venv/bin/activate
-accelerate launch --config_file ./experiments/e1/config.yaml main.py e1_1.4b-d0.3 --dropout 0.3 --batch_size 2 --checkpoint_interval 131072 --validation_interval 131072 --report_interval 256 --architecture "EleutherAI/pythia-1.4b" --wandb 
+accelerate launch --config_file ./experiments/e1/config.yaml main.py e1_1.4b-d0.3 --dropout 0.3 --batch_size 2 --checkpoint_interval 131072 --validation_interval 131072 --report_interval 256 --architecture "EleutherAI/pythia-1.4b" --wandb --lr 0.00001 --warm_start ./output/e1_1.4b-d0.3/best
