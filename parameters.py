@@ -37,6 +37,7 @@ parser.add_argument("--gradient_clip", help="AdamW gradient clip maximum", type=
 ## scheduler
 parser.add_argument("--warmup_pct", help="learning rate warmup steps", type=float, default=0.01)
 parser.add_argument("--decay_target_pct", help="learning rate decay target as a fraction of initial LR", type=float, default=0.1)
+parser.add_argument("--disable_dropout_steps", help="disable dropout after this many steps, defaults 1e17 steps (i.e. never)", type=int, default=1e17)
 
 
 
