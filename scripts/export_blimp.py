@@ -42,7 +42,7 @@ def run_export(prefix, in_path, out_path):
     with open(out_path/"metadata.json", 'w') as f:
         json.dump({
             "prefix": prefix,
-            "dropout": float(re.search(r"d(\d+.?\d+)", prefix).group(1))
+            "dropout": float(re.search(r"d(\d+.?\d+)", prefix).group(1)),
             "checkpoints": [i[0] for i in data_files]
         }, f)
 
