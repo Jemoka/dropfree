@@ -3,6 +3,7 @@ export_blimp.py
 Aggregate blimp data that has been evaluated into CSV files
 """
 
+import re
 import json
 import seaborn
 import pandas as pd
@@ -41,7 +42,7 @@ def run_export(prefix, in_path, out_path):
     with open(out_path/"metadata.json", 'w') as f:
         json.dump({
             "prefix": prefix,
-            "dropout": 
+            "dropout": float(re.search(r"d(\d+.?\d+)", prefix).group(1))
             "checkpoints": [i[0] for i in data_files]
         }, f)
 
