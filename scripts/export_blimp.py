@@ -51,11 +51,14 @@ import click
 @click.command()
 @click.argument("prefix", type=str)
 @click.argument("in_path", type=click.Path(exists=True))
-@click.argument("out_path", type=click.Path())
+@click.parameter("--out_path", type=click.Path(), default=None)
 def export_blimp(prefix, in_path, out_path):
     # prefix = "e1_1.4b-d0.0"
     # in_path = "./results/blimp"
     # out_path = "./results/blimp_e1.4b-d0.0"
+
+    if not out_path:
+        out_path = in_path+"_"+prefix
 
     run_export(prefix, in_path, out_path)
 
