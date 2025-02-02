@@ -21,3 +21,10 @@ logger.add(
 from commands import configure
 from trainer import Trainer
 
+trainer = Trainer.from_pretrained("./output/e1_1.4b-d0.0/checkpoint/1179648")
+model = trainer.model
+tokenizer = trainer.tokenizer
+
+
+
+
