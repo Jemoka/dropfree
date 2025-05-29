@@ -85,8 +85,9 @@ class Trainer:
         self.train_dl_skipped = None 
 
         # optimizer
-        self.optim = AdamW(self.model.parameters(), lr=args.lr, betas=[args.beta1, args.beta2],
-                           eps=args.eps, weight_decay=args.weight_decay)
+        self.optim = self.configure_optimizers(args.weight_decay, args.lr,
+                                               (args.beta1, args.beta2),
+                                               device_type="cuda" if torch.cuda.is_available() else "cpu")
 
         # scheduler
         # TODO hard coding (because the number of iters is hard coded)
@@ -134,6 +135,38 @@ class Trainer:
             i.post_attention_dropout.p = 0.0
             i.post_mlp_dropout.p = 0.0
             i.attention.attention_dropout.p = 0.0
+
+    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
+        # start with all of the candidate parameters
+        param_dict = {pn: p for pn, p in self.model.named_parameters()}
+        # filter out those that do not require grad
+        param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
+        # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
+        # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
+        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
+        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
+        optim_groups = [
+            {"params": decay_params, "weight_decay": weight_decay},
+            {"params": nodecay_params, "weight_decay": 0.0},
+        ]
+        num_decay_params = sum(p.numel() for p in decay_params)
+        num_nodecay_params = sum(p.numel() for p in nodecay_params)
+        print(
+            f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters"
+        )
+        print(
+            f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters"
+        )
+        # Create AdamW optimizer and use the fused version if it is available
+        fused_available = "fused" in inspect.signature(torch.optim.AdamW).parameters
+        use_fused = fused_available and device_type == "cuda"
+        extra_args = dict(fused=True) if use_fused else dict()
+        optimizer = torch.optim.AdamW(
+            optim_groups, lr=learning_rate, betas=betas, **extra_args
+        )
+        print(f"using fused AdamW: {use_fused}")
+
+        return optimizer
         
     def train(self):
         for eid in range(self.args.epochs):
@@ -172,7 +205,7 @@ class Trainer:
         for indx, i in enumerate(dl):
             # save a checkpoint, if needed
             if indx % self.args.checkpoint_interval == 0 and indx != 0:
-                self.save(str(self.save_dir/str(indx)))
+                self.save(str(self.save_dir/str(self.global_step_counter_)))
 
             # perform validation and save a checkpoint, if needed
             if indx % self.args.validation_interval == 0 and indx != 0:
